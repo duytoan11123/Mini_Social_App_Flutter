@@ -1,14 +1,54 @@
 
 import 'package:flutter/material.dart';
+import '../Database/app_database.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:drift/drift.dart' as drift;
+
 class CreatePostForm extends StatefulWidget {
-  const CreatePostForm({super.key});
+
+  CreatePostForm({super.key});
 
   @override
   State<CreatePostForm> createState() => _CreatePostFormState();
 }
 
 class _CreatePostFormState extends State<CreatePostForm> {
+  File? _selectedImage;
+  final _picker = ImagePicker();
   final TextEditingController _captionController = TextEditingController();
+  var _fileButtonText = "Chọn Ảnh";
+
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _selectedImage = File(image.path);
+      });
+      _fileButtonText = image.name;
+    }
+    
+  }
+
+  Future<void> _savePost() async {
+    if (_selectedImage == null || _captionController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Vui lòng chọn ảnh và nhập nội dung!")),
+      );
+      return;
+    }
+
+
+
+    await db.insertPost(
+      PostsCompanion(
+        authorId: drift.Value(3),
+        caption: drift.Value(_captionController.text),
+        imageUrl: drift.Value(_selectedImage!.path),
+      ),
+    );
+    Navigator.pop(context); 
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,16 +65,13 @@ class _CreatePostFormState extends State<CreatePostForm> {
           ),
           const SizedBox(height: 20),
 
-          // Nút Giả lập chọn ảnh
+          // Nút Chọn Ảnh
           ElevatedButton.icon(
             onPressed: () {
-              // TODO: Xử lý chức năng chọn ảnh thực tế (Image Picker)
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chức năng chọn ảnh (Image Picker) chưa được cài đặt!')),
-              );
+              _pickImage();
             },
             icon: const Icon(Icons.photo_library),
-            label: const Text('Chọn Ảnh'),
+            label: Text(_fileButtonText),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
@@ -52,16 +89,15 @@ class _CreatePostFormState extends State<CreatePostForm> {
             maxLines: 3,
             minLines: 1,
           ),
+
           const SizedBox(height: 20),
 
           // Nút Đăng bài
           ElevatedButton(
             onPressed: () {
-              // TODO: Xử lý chức năng đăng bài thực tế
-              final caption = _captionController.text;
-              Navigator.pop(context); // Đóng modal
+              _savePost();
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Đã giả lập đăng bài với Caption: "$caption"')),
+                SnackBar(content: Text('Đăng bài thành công')),
               );
             },
             style: ElevatedButton.styleFrom(
