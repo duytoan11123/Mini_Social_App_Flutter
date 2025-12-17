@@ -1,9 +1,9 @@
 
 import 'package:flutter/material.dart';
-import '../Entity/Post.dart';
-
+import '../Database/app_database.dart';
+import 'dart:io';
 class PostItem extends StatelessWidget {
-  final Post post;
+  final PostWithUser post;
 
   const PostItem({super.key, required this.post});
 
@@ -12,18 +12,18 @@ class PostItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Header: Avatar và Tên người dùng
+        //  Avatar và Tên người dùng
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: NetworkImage(post.userAvatarUrl),
+                backgroundImage: NetworkImage(post.user.avatarUrl ?? 'https://via.placeholder.com/150'),
               ),
               const SizedBox(width: 8.0),
               Text(
-                post.userName,
+                post.user.userName,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const Spacer(),
@@ -31,16 +31,15 @@ class PostItem extends StatelessWidget {
             ],
           ),
         ),
-
-        // 2. Khu vực Ảnh
-        Image.network(
-          post.imageUrl,
+        // Ảnh bài đăng
+        Image.file(
+          File(post.post.imageUrl),
           width: double.infinity,
           height: 400,
           fit: BoxFit.cover,
-        ),
 
-        // 3. Khu vực Icon Tương tác (Không có nút Chia sẻ)
+        ),
+        // Biểu tượng Thích và Bình luận
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
@@ -48,21 +47,20 @@ class PostItem extends StatelessWidget {
               Icon(Icons.favorite_border, size: 28),
               SizedBox(width: 16),
               Icon(Icons.comment_outlined, size: 28),
-              // KHÔNG có nút Chia sẻ (Send/Share) theo yêu cầu
             ],
           ),
         ),
 
-        // 4. Khu vực Likes
+        // Số lượt thích
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10.0),
           child: Text(
-            '${post.likes} lượt thích',
+            '${post.post.likes} lượt thích',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
 
-        // 5. Khu vực Caption
+        // Caption bài đăng
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
           child: RichText(
@@ -70,15 +68,14 @@ class PostItem extends StatelessWidget {
               style: DefaultTextStyle.of(context).style,
               children: <TextSpan>[
                 TextSpan(
-                    text: '${post.userName} ',
+                    text: '${post.user.userName} ',
                     style: const TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: post.caption),
+                TextSpan(text: post.post.caption),
               ],
             ),
           ),
         ),
-
-        // Khoảng cách giữa các bài đăng
+        
         const SizedBox(height: 16.0),
         const Divider(height: 1, thickness: 1),
       ],

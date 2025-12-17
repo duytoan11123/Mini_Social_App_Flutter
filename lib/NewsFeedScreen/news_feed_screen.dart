@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../NewsFeedScreen/createPostModal.dart';
-import '../NewsFeedScreen/postItem.dart';
-import '../Entity/Post.dart';
+import 'create_post_modal.dart';
+import 'post_list.dart';
 class NewsFeedScreen extends StatelessWidget{
-  const NewsFeedScreen({super.key});
+  const NewsFeedScreen({ super.key});
   @override
   Widget build(BuildContext context){
     return Scaffold(
@@ -17,12 +16,7 @@ class NewsFeedScreen extends StatelessWidget{
           ),
         ]
       ),
-      body: ListView.builder(
-        itemCount: samplePosts.length,
-        itemBuilder: (context, index) {
-          return PostItem(post: samplePosts[index]);
-        },
-      ),
+      body: PostListWidget(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Xử lý khi nhấn nút Đăng ảnh (mở màn hình tạo bài đăng mới)
@@ -42,7 +36,7 @@ class NewsFeedScreen extends StatelessWidget{
         // Sử dụng Padding để đẩy nội dung lên khi bàn phím xuất hiện
         return Padding(
           padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: const CreatePostForm(),
+          child:  CreatePostForm(),
         );
       },
     );
