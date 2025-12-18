@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
-import 'NewsFeedScreen/news_feed_screen.dart';
 import 'Database/app_database.dart';
-void main() {
+import 'Login/login_screen.dart';
+import 'Login/auth_storage.dart';
+import 'NewsFeedScreen/news_feed_screen.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  setupDatabase();
-  runApp(MyApp());
+  await setupDatabase();
+  /* await db.insertUser(
+    UsersCompanion.insert(userName: 'admin', password: '123456'),
+  );*/
+  final savedUserId = await AuthStorage.getUserId();
+  currentUserId = savedUserId;
+
+  runApp(MyApp(isLoggedIn: savedUserId != null));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool isLoggedIn;
+  const MyApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Instagram Feed Demo',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 1
-        ),
-      ),
-      home: NewsFeedScreen(),
+      home: isLoggedIn ? const NewsFeedScreen() : const LoginScreen(),
     );
   }
 }
-

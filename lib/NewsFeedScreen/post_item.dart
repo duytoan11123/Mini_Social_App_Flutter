@@ -1,7 +1,7 @@
-
 import 'package:flutter/material.dart';
 import '../Database/app_database.dart';
 import 'dart:io';
+
 class PostItem extends StatelessWidget {
   final PostWithUser post;
 
@@ -19,7 +19,9 @@ class PostItem extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: NetworkImage(post.user.avatarUrl ?? 'https://via.placeholder.com/150'),
+                backgroundImage: NetworkImage(
+                  post.user.avatarUrl ?? 'https://via.placeholder.com/150',
+                ),
               ),
               const SizedBox(width: 8.0),
               Text(
@@ -37,7 +39,6 @@ class PostItem extends StatelessWidget {
           width: double.infinity,
           height: 400,
           fit: BoxFit.cover,
-
         ),
         // Biểu tượng Thích và Bình luận
         Padding(
@@ -68,14 +69,15 @@ class PostItem extends StatelessWidget {
               style: DefaultTextStyle.of(context).style,
               children: <TextSpan>[
                 TextSpan(
-                    text: '${post.user.userName} ',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                  text: '${post.user.userName} ',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 TextSpan(text: post.post.caption),
               ],
             ),
           ),
         ),
-        
+
         const SizedBox(height: 16.0),
         const Divider(height: 1, thickness: 1),
       ],
