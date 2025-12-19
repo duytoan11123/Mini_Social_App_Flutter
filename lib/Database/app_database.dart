@@ -10,12 +10,12 @@ part 'app_database.g.dart';
 late AppDatabase db;
 int? currentUserId;
 
-@DriftDatabase(tables: [Posts, Users])
+@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 6;
 
   // =========================
   // ===== ĐĂNG NHẬP =========
@@ -92,6 +92,136 @@ class AppDatabase extends _$AppDatabase {
       }).toList();
     });
   }
+
+  // =========================
+  // ===== BÌNH LUẬN =========
+  // =========================
+
+  Future<int> insertComment(CommentsCompanion entry) {
+    return into(comments).insert(entry);
+  }
+
+  Future<int> deleteComment(int id) {
+    return (delete(comments)..where((c) => c.id.equals(id))).go();
+  }
+
+  Future<int> getCommentCount(int postId) async {
+    final count = await (select(comments)..where((c) => c.postId.equals(postId))).get();
+    return count.length;
+  }
+
+  // Lấy comment gốc (không phải reply)
+  Stream<List<CommentWithUser>> watchCommentsForPost(int postId) {
+    final query = select(comments).join([
+      leftOuterJoin(users, users.id.equalsExp(comments.userId)),
+    ])..where(comments.postId.equals(postId) & comments.parentId.isNull())
+      ..orderBy([OrderingTerm(expression: comments.createdAt, mode: OrderingMode.asc)]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return CommentWithUser(
+          comment: row.readTable(comments),
+          user: row.readTable(users),
+        );
+      }).toList();
+    });
+  }
+
+  // Lấy replies của một comment
+  Stream<List<CommentWithUser>> watchRepliesForComment(int parentId) {
+    final query = select(comments).join([
+      leftOuterJoin(users, users.id.equalsExp(comments.userId)),
+    ])..where(comments.parentId.equals(parentId))
+      ..orderBy([OrderingTerm(expression: comments.createdAt, mode: OrderingMode.asc)]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return CommentWithUser(
+          comment: row.readTable(comments),
+          user: row.readTable(users),
+        );
+      }).toList();
+    });
+  }
+
+  // Đếm số reply của một comment
+  Future<int> getReplyCount(int parentId) async {
+    final count = await (select(comments)..where((c) => c.parentId.equals(parentId))).get();
+    return count.length;
+  }
+
+  Future<List<CommentWithUser>> getRecentComments(int postId, {int limit = 2}) async {
+    final query = select(comments).join([
+      leftOuterJoin(users, users.id.equalsExp(comments.userId)),
+    ])..where(comments.postId.equals(postId) & comments.parentId.isNull())
+      ..orderBy([OrderingTerm(expression: comments.createdAt, mode: OrderingMode.desc)])
+      ..limit(limit);
+
+    final rows = await query.get();
+    return rows.map((row) {
+      return CommentWithUser(
+        comment: row.readTable(comments),
+        user: row.readTable(users),
+      );
+    }).toList().reversed.toList();
+  }
+
+  // =========================
+  // ===== REACTIONS =========
+  // =========================
+
+  Future<void> toggleReaction(int commentId, int userId, String reaction) async {
+    final existing = await (select(commentReactions)
+      ..where((r) => r.commentId.equals(commentId) & r.userId.equals(userId)))
+      .getSingleOrNull();
+
+    if (existing != null) {
+      if (existing.reaction == reaction) {
+        // Xóa reaction nếu đã chọn cùng loại
+        await (delete(commentReactions)..where((r) => r.id.equals(existing.id))).go();
+      } else {
+        // Đổi sang reaction khác
+        await (update(commentReactions)..where((r) => r.id.equals(existing.id)))
+          .write(CommentReactionsCompanion(reaction: Value(reaction)));
+      }
+    } else {
+      // Thêm reaction mới
+      await into(commentReactions).insert(CommentReactionsCompanion(
+        commentId: Value(commentId),
+        userId: Value(userId),
+        reaction: Value(reaction),
+      ));
+    }
+  }
+
+  Future<String?> getUserReaction(int commentId, int userId) async {
+    final result = await (select(commentReactions)
+      ..where((r) => r.commentId.equals(commentId) & r.userId.equals(userId)))
+      .getSingleOrNull();
+    return result?.reaction;
+  }
+
+  Stream<List<ReactionCount>> watchReactionsForComment(int commentId) {
+    final query = selectOnly(commentReactions)
+      ..addColumns([commentReactions.reaction, commentReactions.id.count()])
+      ..where(commentReactions.commentId.equals(commentId))
+      ..groupBy([commentReactions.reaction]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return ReactionCount(
+          reaction: row.read(commentReactions.reaction)!,
+          count: row.read(commentReactions.id.count())!,
+        );
+      }).toList();
+    });
+  }
+
+  Future<int> getTotalReactionCount(int commentId) async {
+    final result = await (select(commentReactions)
+      ..where((r) => r.commentId.equals(commentId))).get();
+    return result.length;
+  }
 }
 
 // =========================
@@ -115,4 +245,18 @@ class PostWithUser {
   final User user;
 
   PostWithUser({required this.post, required this.user});
+}
+
+class CommentWithUser {
+  final Comment comment;
+  final User user;
+
+  CommentWithUser({required this.comment, required this.user});
+}
+
+class ReactionCount {
+  final String reaction;
+  final int count;
+
+  ReactionCount({required this.reaction, required this.count});
 }

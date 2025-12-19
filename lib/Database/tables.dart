@@ -16,3 +16,21 @@ class Posts extends Table {
   IntColumn get likes => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
+
+class Comments extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get postId => integer().references(Posts, #id)();
+  IntColumn get userId => integer().references(Users, #id)();
+  TextColumn get content => text().nullable()();
+  TextColumn get imageUrl => text().nullable()();
+  IntColumn get parentId => integer().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+// Reactions cho bình luận: 👍❤️😆😮😢😠
+class CommentReactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get commentId => integer().references(Comments, #id)();
+  IntColumn get userId => integer().references(Users, #id)();
+  TextColumn get reaction => text()(); // like, love, haha, wow, sad, angry
+}
