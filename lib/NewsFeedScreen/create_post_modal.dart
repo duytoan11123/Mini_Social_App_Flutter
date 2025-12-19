@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../Database/app_database.dart';
 import 'dart:io';
@@ -6,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:drift/drift.dart' as drift;
 
 class CreatePostForm extends StatefulWidget {
-
   CreatePostForm({super.key});
 
   @override
@@ -27,10 +25,15 @@ class _CreatePostFormState extends State<CreatePostForm> {
       });
       _fileButtonText = image.name;
     }
-    
   }
 
   Future<void> _savePost() async {
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bạn chưa đăng nhập')));
+      return;
+    }
     if (_selectedImage == null || _captionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Vui lòng chọn ảnh và nhập nội dung!")),
@@ -38,16 +41,14 @@ class _CreatePostFormState extends State<CreatePostForm> {
       return;
     }
 
-
-
     await db.insertPost(
       PostsCompanion(
-        authorId: drift.Value(3),
+        authorId: drift.Value(currentUserId!),
         caption: drift.Value(_captionController.text),
         imageUrl: drift.Value(_selectedImage!.path),
       ),
     );
-    Navigator.pop(context); 
+    Navigator.pop(context);
   }
 
   @override
@@ -96,9 +97,9 @@ class _CreatePostFormState extends State<CreatePostForm> {
           ElevatedButton(
             onPressed: () {
               _savePost();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Đăng bài thành công')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Đăng bài thành công')));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blueAccent,

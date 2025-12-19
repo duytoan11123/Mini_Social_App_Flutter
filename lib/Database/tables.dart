@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 class Users extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get userName => text().withLength(min: 3, max: 20)();
+  TextColumn get password => text()();
   TextColumn get avatarUrl => text().nullable()();
 }
 
