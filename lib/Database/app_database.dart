@@ -21,6 +21,22 @@ class AppDatabase extends _$AppDatabase {
   // ===== ĐĂNG NHẬP =========
   // =========================
 
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        // Code "đập đi xây lại" cho môi trường Dev
+        for (final table in allTables) {
+          await m.deleteTable(table.actualTableName);
+        }
+        await m.createAll();
+      },
+    );
+  }
+
   /// Kiểm tra username + password
   /// Chỉ dùng cho đăng nhập – KHÔNG tạo user
   Future<User?> login(String username, String password) async {
