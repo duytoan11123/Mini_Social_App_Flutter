@@ -9,7 +9,7 @@ void main() async {
   await setupDatabase();
   /* await db.insertUser(
     UsersCompanion.insert(userName: 'admin', password: '123456'),
-  );*/
+  ); */
   final savedUserId = await AuthStorage.getUserId();
   currentUserId = savedUserId;
 

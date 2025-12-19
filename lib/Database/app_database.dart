@@ -17,6 +17,33 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 3;
 
+  /// Đăng ký tài khoản mới
+  /// Trả về User object nếu thành công
+  /// Trả về null nếu username đã tồn tại
+  Future<User?> register(String username, String password, {String? email}) async {
+    // 1. Kiểm tra xem username đã tồn tại chưa
+    final existingUser = await (select(users)
+      ..where((u) => u.userName.equals(username)))
+        .getSingleOrNull();
+
+    if (existingUser != null) {
+      return null; // Username đã bị trùng
+    }
+
+    // 2. Chuẩn bị dữ liệu để chèn
+    // Sử dụng UsersCompanion.insert để Drift tự động xử lý các trường bắt buộc/tùy chọn
+    final newEntry = UsersCompanion.insert(
+      userName: username,
+      password: password,
+      email: Value(email), // Value(null) nếu không có email
+      createdAt: Value(DateTime.now()), // Gán thời gian hiện tại
+    );
+
+    // 3. Chèn vào DB và trả về dòng dữ liệu vừa tạo (bao gồm cả ID tự tăng)
+    return await into(users).insertReturning(newEntry);
+  }
+
+
   // =========================
   // ===== ĐĂNG NHẬP =========
   // =========================
