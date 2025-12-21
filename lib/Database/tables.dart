@@ -7,6 +7,8 @@ class Users extends Table {
   TextColumn get email => text().nullable()();
   TextColumn get avatarUrl => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
+  TextColumn get fullName => text().nullable()();
+  TextColumn get bio => text().nullable()();
 }
 
 class Posts extends Table {

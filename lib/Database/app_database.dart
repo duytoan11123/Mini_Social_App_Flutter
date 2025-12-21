@@ -20,11 +20,15 @@ class AppDatabase extends _$AppDatabase {
   /// Đăng ký tài khoản mới
   /// Trả về User object nếu thành công
   /// Trả về null nếu username đã tồn tại
-  Future<User?> register(String username, String password, {String? email}) async {
+  Future<User?> register(
+    String username,
+    String password, {
+    String? email,
+  }) async {
     // 1. Kiểm tra xem username đã tồn tại chưa
-    final existingUser = await (select(users)
-      ..where((u) => u.userName.equals(username)))
-        .getSingleOrNull();
+    final existingUser = await (select(
+      users,
+    )..where((u) => u.userName.equals(username))).getSingleOrNull();
 
     if (existingUser != null) {
       return null; // Username đã bị trùng
@@ -42,8 +46,6 @@ class AppDatabase extends _$AppDatabase {
     // 3. Chèn vào DB và trả về dòng dữ liệu vừa tạo (bao gồm cả ID tự tăng)
     return await into(users).insertReturning(newEntry);
   }
-
-
   // =========================
   // ===== ĐĂNG NHẬP =========
   // =========================
@@ -119,8 +121,16 @@ class AppDatabase extends _$AppDatabase {
       }).toList();
     });
   }
-}
 
+  /// Lấy tất cả bài viết của một người dùng cụ thể
+  Future<List<Post>> getPostsByUserId(int userId) {
+    return (select(posts)..where((t) => t.authorId.equals(userId))).get();
+  }
+
+  Future<bool> updateUser(User user) {
+    return update(users).replace(user);
+  }
+}
 // =========================
 // ===== KẾT NỐI DATABASE
 // =========================
