@@ -29,9 +29,18 @@ class PostItem extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: NetworkImage(
-                  post.user.avatarUrl ?? 'https://via.placeholder.com/150',
-                ),
+                backgroundColor: Colors.grey[300],
+                backgroundImage:
+                    (post.user.avatarUrl != null &&
+                        post.user.avatarUrl!.isNotEmpty)
+                    ? FileImage(File(post.user.avatarUrl!))
+                    : null,
+                // 👇 FALLBACK: Nếu không có ảnh thì hiện icon người
+                child:
+                    (post.user.avatarUrl == null ||
+                        post.user.avatarUrl!.isEmpty)
+                    ? const Icon(Icons.person, size: 20, color: Colors.grey)
+                    : null,
               ),
               const SizedBox(width: 8.0),
               Text(

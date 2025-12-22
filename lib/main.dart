@@ -7,17 +7,19 @@ import 'NewsFeedScreen/news_feed_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupDatabase();
-  
-  // Tạo user admin nếu chưa có
+
+  // --- ĐOẠN ĐÃ SỬA (Lấy từ nhánh dev) ---
+  // Tạo user admin nếu chưa có (để test nhanh)
   final existingUsers = await db.getAllUsers();
   if (existingUsers.isEmpty) {
     await db.insertUser(
       UsersCompanion.insert(userName: 'admin', password: '123456'),
     );
   }
-  
+  // -------------------------------------
+
   final savedUserId = await AuthStorage.getUserId();
-  
+
   // Kiểm tra user còn tồn tại trong database không
   if (savedUserId != null) {
     final user = await db.getUserById(savedUserId);

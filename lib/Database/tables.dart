@@ -2,9 +2,13 @@ import 'package:drift/drift.dart';
 
 class Users extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get userName => text().withLength(min: 3, max: 20)();
+  TextColumn get userName => text().withLength(min: 3, max: 20).unique()();
   TextColumn get password => text()();
+  TextColumn get email => text().nullable()();
   TextColumn get avatarUrl => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  TextColumn get fullName => text().nullable()();
+  TextColumn get bio => text().nullable()();
 }
 
 class Posts extends Table {

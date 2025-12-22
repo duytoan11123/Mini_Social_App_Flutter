@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../Database/app_database.dart';
 import '../NewsFeedScreen/news_feed_screen.dart';
 import 'auth_storage.dart';
+import 'register_screen.dart'; // Dẫn tới file RegisterScreen
+import 'dart:convert';
+import '../utils/password_utils.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,7 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _loading = true);
 
-    final user = await db.login(username, password);
+    // Mã hóa mật khẩu trước khi gửi xuống DB
+    final hashedPassword = PasswordUtils.hash(password);
+
+    final user = await db.login(username, hashedPassword);
 
     setState(() => _loading = false);
 
@@ -143,13 +149,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: _loading
                             ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
+                          color: Colors.white,
+                        )
                             : const Text(
-                                'Đăng nhập',
-                                style: TextStyle(fontSize: 15),
-                              ),
+                          'Đăng nhập',
+                          style: TextStyle(fontSize: 15),
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Nút chuyển sang màn hình Đăng ký
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Chưa có tài khoản? "),
+                        TextButton(
+                          onPressed: () {
+                            // Điều hướng sang màn hình Đăng ký
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Đăng ký ngay',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
