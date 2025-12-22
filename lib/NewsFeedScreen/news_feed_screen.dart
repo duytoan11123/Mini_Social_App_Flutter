@@ -4,6 +4,7 @@ import 'post_list.dart';
 import '../Login/auth_storage.dart';
 import '../Login/login_screen.dart';
 import '../Database/app_database.dart';
+import '../Profile/profile_screen.dart';
 
 class NewsFeedScreen extends StatelessWidget {
   const NewsFeedScreen({super.key});
@@ -17,6 +18,35 @@ class NewsFeedScreen extends StatelessWidget {
         ),
         centerTitle: false,
         actions: [
+          InkWell(
+            onTap: () {
+              // Chuyển sang trang Profile khi bấm vào
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Row(
+                children: [
+                  // Hình tròn Avatar
+                  CircleAvatar(
+                    radius: 16, // Kích thước nhỏ vừa phải trên AppBar
+                    backgroundColor: Colors.grey.shade300,
+                    // Nếu sau này có ảnh thì dùng NetworkImage, giờ dùng icon tạm
+                    child: const Icon(
+                      Icons.person,
+                      size: 20,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
           const Padding(
             padding: EdgeInsets.only(right: 16.0),
             child: Icon(Icons.favorite_border),
