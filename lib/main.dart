@@ -7,12 +7,11 @@ import 'NewsFeedScreen/news_feed_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupDatabase();
-  /* await db.insertUser(
-    UsersCompanion.insert(userName: 'admin', password: '123456'),
-  );*/
+  // await db.insertUser(
+  //   UsersCompanion.insert(userName: 'admin', password: '123456'),
+  // );
   final savedUserId = await AuthStorage.getUserId();
   currentUserId = savedUserId;
-
   runApp(MyApp(isLoggedIn: savedUserId != null));
 }
 
