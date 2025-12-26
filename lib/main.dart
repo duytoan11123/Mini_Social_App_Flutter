@@ -8,16 +8,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupDatabase();
 
-  // --- ĐOẠN ĐÃ SỬA (Lấy từ nhánh dev) ---
-  // Tạo user admin nếu chưa có (để test nhanh)
-  final existingUsers = await db.getAllUsers();
-  if (existingUsers.isEmpty) {
-    await db.insertUser(
-      UsersCompanion.insert(userName: 'admin', password: '123456'),
-    );
-  }
-  // -------------------------------------
-
   final savedUserId = await AuthStorage.getUserId();
 
   // Kiểm tra user còn tồn tại trong database không

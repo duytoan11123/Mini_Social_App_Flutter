@@ -46,11 +46,6 @@ class NewsFeedScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 5),
-          const Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Icon(Icons.favorite_border),
-          ),
 
           IconButton(
             icon: const Icon(Icons.logout),
@@ -70,7 +65,6 @@ class NewsFeedScreen extends StatelessWidget {
       body: PostListWidget(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Xử lý khi nhấn nút Đăng ảnh (mở màn hình tạo bài đăng mới)
           _showCreatePostModal(context);
         },
         backgroundColor: Colors.blueAccent,

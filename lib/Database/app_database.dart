@@ -10,12 +10,12 @@ part 'app_database.g.dart';
 late AppDatabase db;
 int? currentUserId;
 
-@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions])
+@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions, PostLikes])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// Đăng ký tài khoản mới
   Future<User?> register(
@@ -79,8 +79,34 @@ class AppDatabase extends _$AppDatabase {
     return into(posts).insert(entry);
   }
 
-  Future<int> deletePost(int id) {
-    return (delete(posts)..where((t) => t.id.equals(id))).go();
+  Future<void> deletePost(int id) {
+    return transaction(() async {
+      // 1. Xóa PostLikes liên quan
+      await (delete(postLikes)..where((t) => t.postId.equals(id))).go();
+
+      // 2. Xóa Comments liên quan (và reactions của comment đó - cần cẩn thận nếu có bảng CommentReactions)
+      // Để đơn giản, ta tìm các comment của post này trước
+      final commentsOfPost = await (select(
+        comments,
+      )..where((t) => t.postId.equals(id))).get();
+
+      for (var c in commentsOfPost) {
+        // Xóa reactions của comment
+        await (delete(
+          commentReactions,
+        )..where((r) => r.commentId.equals(c.id))).go();
+        // Xóa comment (reply sẽ tự xử lý hoặc cần đệ quy nếu cấu trúc phức tạp, ở đây tạm thời xóa trực tiếp)
+        // Nếu có reply logic phức tạp, cần xóa reply trước.
+        await (delete(comments)..where((t) => t.id.equals(c.id))).go();
+      }
+
+      // 3. Xóa Bài viết
+      await (delete(posts)..where((t) => t.id.equals(id))).go();
+    });
+  }
+
+  Future<bool> updatePost(Post post) {
+    return update(posts).replace(post);
   }
 
   Future<int> insertUser(UsersCompanion entry) {
@@ -302,7 +328,53 @@ class AppDatabase extends _$AppDatabase {
   Future<bool> updateUser(User user) {
     return update(users).replace(user);
   }
-} // <--- Đóng class AppDatabase ở đây
+
+  // =========================
+  // ===== POST LIKES =========
+  // =========================
+
+  Future<bool> hasUserLikedPost(int postId, int userId) async {
+    final entry =
+        await (select(postLikes)
+              ..where((t) => t.postId.equals(postId) & t.userId.equals(userId)))
+            .getSingleOrNull();
+    return entry != null;
+  }
+
+  Future<void> togglePostLike(int postId, int userId) async {
+    return transaction(() async {
+      final existing =
+          await (select(postLikes)..where(
+                (t) => t.postId.equals(postId) & t.userId.equals(userId),
+              ))
+              .getSingleOrNull();
+
+      if (existing != null) {
+        // Unlike: Xóa khỏi bảng PostLikes và giảm count trong Posts
+        await (delete(postLikes)..where((t) => t.id.equals(existing.id))).go();
+
+        final post = await (select(
+          posts,
+        )..where((t) => t.id.equals(postId))).getSingle();
+        await (update(posts)..where((t) => t.id.equals(postId))).write(
+          PostsCompanion(likes: Value(post.likes > 0 ? post.likes - 1 : 0)),
+        );
+      } else {
+        // Like: Thêm vào bảng PostLikes và tăng count trong Posts
+        await into(postLikes).insert(
+          PostLikesCompanion(postId: Value(postId), userId: Value(userId)),
+        );
+
+        final post = await (select(
+          posts,
+        )..where((t) => t.id.equals(postId))).getSingle();
+        await (update(posts)..where((t) => t.id.equals(postId))).write(
+          PostsCompanion(likes: Value(post.likes + 1)),
+        );
+      }
+    });
+  }
+}
 
 // =========================
 // ===== KẾT NỐI DATABASE
