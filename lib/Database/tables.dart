@@ -38,3 +38,10 @@ class CommentReactions extends Table {
   IntColumn get userId => integer().references(Users, #id)();
   TextColumn get reaction => text()(); // like, love, haha, wow, sad, angry
 }
+
+class PostLikes extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get postId => integer().references(Posts, #id)();
+  IntColumn get userId => integer().references(Users, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
