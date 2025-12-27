@@ -374,7 +374,54 @@ class AppDatabase extends _$AppDatabase {
       }
     });
   }
+
+  // =========================
+  // ===== TÌM KIẾM (SEARCH) =
+  // =========================
+
+  /// Tìm kiếm người dùng theo tên (Username)
+  Future<List<User>> searchUsers(String keyword) {
+    if(keyword.trim().isEmpty){
+      return Future.value([]);
+    }
+
+    return (select(users)
+      ..where((u) => u.userName.lower().like('%${keyword.toLowerCase()}%'))
+    ).get();
+  }
+
+  /// Tìm kiếm bài viết theo nội dung
+  Stream<List<PostWithUser>> searchPosts(String keyword) {
+    // Nếu từ khóa rỗng, trả về list rỗng
+    if (keyword.trim().isEmpty) {
+      return Stream.value([]);
+    }
+
+    final query = select(posts).join([
+      innerJoin(users, users.id.equalsExp(posts.authorId)), // Dùng innerJoin để đảm bảo lấy được user
+    ]);
+
+    // Thêm điều kiện tìm kiếm theo nội dung
+    query.where(posts.caption.lower().like('%${keyword.toLowerCase()}%'));
+
+    // Sắp xếp bài mới nhất lên đầu
+    query.orderBy([
+      OrderingTerm(expression: posts.createdAt, mode: OrderingMode.desc),
+    ]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return PostWithUser(
+          post: row.readTable(posts),
+          user: row.readTable(users),
+        );
+      }).toList();
+    });
+  }
+
 }
+
+
 
 // =========================
 // ===== KẾT NỐI DATABASE
