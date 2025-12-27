@@ -5,6 +5,7 @@ import '../Login/auth_storage.dart';
 import '../Login/login_screen.dart';
 import '../Database/app_database.dart';
 import '../Profile/profile_screen.dart';
+import '../Search/search_screen.dart';
 
 class NewsFeedScreen extends StatelessWidget {
   const NewsFeedScreen({super.key});
@@ -18,6 +19,17 @@ class NewsFeedScreen extends StatelessWidget {
         ),
         centerTitle: false,
         actions: [
+          // Thêm nút tìm kiếm
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Tìm kiếm',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+            },
+          ),
           InkWell(
             onTap: () {
               // Chuyển sang trang Profile khi bấm vào
