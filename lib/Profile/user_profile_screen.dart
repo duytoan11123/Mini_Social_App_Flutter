@@ -16,13 +16,37 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   List<Post> _userPosts = [];
   bool _isLoading = true;
+  bool _isFollowing = false; // Biến trạng thái theo dõi
 
   @override
   void initState() {
     super.initState();
     _loadUserPosts();
+    _checkFollowingStatus(); // Kiểm tra khi mở màn hình
   }
 
+  // Hàm kiểm tra xem mình đã follow người này chưa
+  Future<void> _checkFollowingStatus() async {
+    if (currentUserId == null) return;
+
+    final status = await db.isFollowing(currentUserId!, widget.user.id);
+
+    if(mounted){
+      setState((){
+        _isFollowing = status;
+      });
+    }
+  }
+
+  Future<void> _handleToggleFollow() async {
+    if (currentUserId == null) return;
+
+    await db.toggleFollow(currentUserId!, widget.user.id);
+
+    setState(() {
+      _isFollowing = !_isFollowing;
+    });
+  }
   // Load bài viết của người này
   Future<void> _loadUserPosts() async {
     // Gọi hàm lấy bài viết theo ID (Cần đảm bảo hàm này đã có trong AppDatabase)
@@ -116,17 +140,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
 
           const SizedBox(height: 20),
-          // Nút Follow (Demo - chưa có logic)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Tính năng Follow đang phát triển")));
-              },
+
+          // Chỉ hiện nút Follow nếu KHÔNG phải là trang cá nhân của chính mình
+          if (currentUserId != widget.user.id)
+            SizedBox(
+              width: double.infinity,              child: _isFollowing
+                ? OutlinedButton( // Giao diện khi ĐÃ theo dõi (Nút viền)
+              onPressed: _handleToggleFollow,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.grey),
+              ),
+              child: const Text("Đang theo dõi",
+                  style: TextStyle(color: Colors.black)),
+            )
+                : ElevatedButton( // Giao diện khi CHƯA theo dõi (Nút màu)
+              onPressed: _handleToggleFollow,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
               child: const Text("Theo dõi"),
             ),
-          ),
+            ),
         ],
       ),
     );
