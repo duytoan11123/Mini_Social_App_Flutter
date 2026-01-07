@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart'; // Để dùng class Post, User, PostWithUser
+import '../../Database/app_database.dart'; // Để dùng class Post, User, PostWithUser
 import 'post_item.dart'; // Để dùng giao diện hiển thị bài viết
 
 class PostDetailScreen extends StatelessWidget {

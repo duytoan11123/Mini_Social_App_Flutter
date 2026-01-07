@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'create_post_modal.dart';
 import 'post_list.dart';
-import '../Login/auth_storage.dart';
-import '../Login/login_screen.dart';
-import '../Database/app_database.dart';
+import '../../Controllers/auth_controller.dart';
+import '../Auth/login_screen.dart';
 import '../Profile/profile_screen.dart';
 import '../Search/search_screen.dart';
 
@@ -62,8 +61,7 @@ class NewsFeedScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await AuthStorage.logout();
-              currentUserId = null;
+              await AuthController.instance.logout();
 
               Navigator.pushAndRemoveUntil(
                 context,

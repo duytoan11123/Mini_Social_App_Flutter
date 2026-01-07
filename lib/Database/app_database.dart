@@ -10,7 +10,9 @@ part 'app_database.g.dart';
 late AppDatabase db;
 int? currentUserId;
 
-@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions, PostLikes, Follows])
+@DriftDatabase(
+  tables: [Posts, Users, Comments, CommentReactions, PostLikes, Follows],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -81,26 +83,19 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deletePost(int id) {
     return transaction(() async {
-      // 1. Xóa PostLikes liên quan
       await (delete(postLikes)..where((t) => t.postId.equals(id))).go();
 
-      // 2. Xóa Comments liên quan (và reactions của comment đó - cần cẩn thận nếu có bảng CommentReactions)
-      // Để đơn giản, ta tìm các comment của post này trước
       final commentsOfPost = await (select(
         comments,
       )..where((t) => t.postId.equals(id))).get();
 
       for (var c in commentsOfPost) {
-        // Xóa reactions của comment
         await (delete(
           commentReactions,
         )..where((r) => r.commentId.equals(c.id))).go();
-        // Xóa comment (reply sẽ tự xử lý hoặc cần đệ quy nếu cấu trúc phức tạp, ở đây tạm thời xóa trực tiếp)
-        // Nếu có reply logic phức tạp, cần xóa reply trước.
         await (delete(comments)..where((t) => t.id.equals(c.id))).go();
       }
 
-      // 3. Xóa Bài viết
       await (delete(posts)..where((t) => t.id.equals(id))).go();
     });
   }
@@ -335,10 +330,13 @@ class AppDatabase extends _$AppDatabase {
 
   // 1. Kiểm tra trạng thái follow
   Future<bool> isFollowing(int followerId, int followingId) async {
-    final result = await (select(follows)
-      ..where((t) =>
-      t.followerId.equals(followerId) & t.followingId.equals(followingId)))
-        .getSingleOrNull();
+    final result =
+        await (select(follows)..where(
+              (t) =>
+                  t.followerId.equals(followerId) &
+                  t.followingId.equals(followingId),
+            ))
+            .getSingleOrNull();
     return result != null;
   }
 
@@ -348,17 +346,20 @@ class AppDatabase extends _$AppDatabase {
 
     if (isAlreadyFollowing) {
       // Đang follow -> Xóa (Unfollow)
-      await (delete(follows)
-        ..where((t) =>
-        t.followerId.equals(followerId) &
-        t.followingId.equals(followingId)))
+      await (delete(follows)..where(
+            (t) =>
+                t.followerId.equals(followerId) &
+                t.followingId.equals(followingId),
+          ))
           .go();
     } else {
       // Chưa follow -> Thêm mới
-      await into(follows).insert(FollowsCompanion(
-        followerId: Value(followerId),
-        followingId: Value(followingId),
-      ));
+      await into(follows).insert(
+        FollowsCompanion(
+          followerId: Value(followerId),
+          followingId: Value(followingId),
+        ),
+      );
     }
   }
 
@@ -379,7 +380,6 @@ class AppDatabase extends _$AppDatabase {
 
     return query.map((row) => row.read(follows.id.count())!).watchSingle();
   }
-
 
   // =========================
   // ===== POST LIKES =========
@@ -433,13 +433,13 @@ class AppDatabase extends _$AppDatabase {
 
   /// Tìm kiếm người dùng theo tên (Username)
   Future<List<User>> searchUsers(String keyword) {
-    if(keyword.trim().isEmpty){
+    if (keyword.trim().isEmpty) {
       return Future.value([]);
     }
 
     return (select(users)
-      ..where((u) => u.userName.lower().like('%${keyword.toLowerCase()}%'))
-    ).get();
+          ..where((u) => u.userName.lower().like('%${keyword.toLowerCase()}%')))
+        .get();
   }
 
   /// Tìm kiếm bài viết theo nội dung
@@ -450,7 +450,10 @@ class AppDatabase extends _$AppDatabase {
     }
 
     final query = select(posts).join([
-      innerJoin(users, users.id.equalsExp(posts.authorId)), // Dùng innerJoin để đảm bảo lấy được user
+      innerJoin(
+        users,
+        users.id.equalsExp(posts.authorId),
+      ), // Dùng innerJoin để đảm bảo lấy được user
     ]);
 
     // Thêm điều kiện tìm kiếm theo nội dung
@@ -470,10 +473,7 @@ class AppDatabase extends _$AppDatabase {
       }).toList();
     });
   }
-
 }
-
-
 
 // =========================
 // ===== KẾT NỐI DATABASE

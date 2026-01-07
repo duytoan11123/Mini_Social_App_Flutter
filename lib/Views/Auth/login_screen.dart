@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
-import '../NewsFeedScreen/news_feed_screen.dart';
-import 'auth_storage.dart';
+import '../Post/news_feed_screen.dart';
+import '../../Controllers/auth_controller.dart';
 import 'register_screen.dart'; // Dẫn tới file RegisterScreen
-import 'dart:convert';
-import '../utils/password_utils.dart';
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,27 +29,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _loading = true);
 
-    // Mã hóa mật khẩu trước khi gửi xuống DB
-    final hashedPassword = PasswordUtils.hash(password);
+    try {
+      final user = await AuthController.instance.login(username, password);
 
-    final user = await db.login(username, hashedPassword);
+      if (!mounted) return;
 
-    setState(() => _loading = false);
+      setState(() => _loading = false);
 
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sai tài khoản hoặc mật khẩu')),
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sai tài khoản hoặc mật khẩu')),
+        );
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const NewsFeedScreen()),
       );
-      return;
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
     }
-
-    currentUserId = user.id;
-    await AuthStorage.saveUserId(user.id);
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const NewsFeedScreen()),
-    );
   }
 
   @override
@@ -150,12 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: _loading
                             ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
+                                color: Colors.white,
+                              )
                             : const Text(
-                          'Đăng nhập',
-                          style: TextStyle(fontSize: 15),
-                        ),
+                                'Đăng nhập',
+                                style: TextStyle(fontSize: 15),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),

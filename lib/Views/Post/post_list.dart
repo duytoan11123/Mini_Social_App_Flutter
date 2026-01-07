@@ -1,4 +1,5 @@
-import '../Database/app_database.dart';
+import '../../Database/app_database.dart';
+import '../../Controllers/post_controller.dart';
 import 'package:flutter/material.dart';
 import 'post_item.dart';
 
@@ -7,7 +8,7 @@ class PostListWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<PostWithUser>>(
-      stream: db.watchPostsWithUsers(),
+      stream: PostController.instance.watchPostsWithUsers(),
       builder: (context, snapshot) {
         final posts = snapshot.data ?? [];
         print('Number of posts: ${posts.length}');
