@@ -81,26 +81,19 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deletePost(int id) {
     return transaction(() async {
-      // 1. Xóa PostLikes liên quan
       await (delete(postLikes)..where((t) => t.postId.equals(id))).go();
 
-      // 2. Xóa Comments liên quan (và reactions của comment đó - cần cẩn thận nếu có bảng CommentReactions)
-      // Để đơn giản, ta tìm các comment của post này trước
       final commentsOfPost = await (select(
         comments,
       )..where((t) => t.postId.equals(id))).get();
 
       for (var c in commentsOfPost) {
-        // Xóa reactions của comment
         await (delete(
           commentReactions,
         )..where((r) => r.commentId.equals(c.id))).go();
-        // Xóa comment (reply sẽ tự xử lý hoặc cần đệ quy nếu cấu trúc phức tạp, ở đây tạm thời xóa trực tiếp)
-        // Nếu có reply logic phức tạp, cần xóa reply trước.
         await (delete(comments)..where((t) => t.id.equals(c.id))).go();
       }
 
-      // 3. Xóa Bài viết
       await (delete(posts)..where((t) => t.id.equals(id))).go();
     });
   }
