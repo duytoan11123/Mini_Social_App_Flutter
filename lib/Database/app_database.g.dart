@@ -1954,6 +1954,325 @@ class PostLikesCompanion extends UpdateCompanion<PostLike> {
   }
 }
 
+class $FollowsTable extends Follows with TableInfo<$FollowsTable, Follow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FollowsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _followerIdMeta = const VerificationMeta(
+    'followerId',
+  );
+  @override
+  late final GeneratedColumn<int> followerId = GeneratedColumn<int>(
+    'follower_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES users (id)',
+    ),
+  );
+  static const VerificationMeta _followingIdMeta = const VerificationMeta(
+    'followingId',
+  );
+  @override
+  late final GeneratedColumn<int> followingId = GeneratedColumn<int>(
+    'following_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES users (id)',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    followerId,
+    followingId,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'follows';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Follow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('follower_id')) {
+      context.handle(
+        _followerIdMeta,
+        followerId.isAcceptableOrUnknown(data['follower_id']!, _followerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_followerIdMeta);
+    }
+    if (data.containsKey('following_id')) {
+      context.handle(
+        _followingIdMeta,
+        followingId.isAcceptableOrUnknown(
+          data['following_id']!,
+          _followingIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_followingIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {followerId, followingId},
+  ];
+  @override
+  Follow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Follow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      followerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}follower_id'],
+      )!,
+      followingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}following_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FollowsTable createAlias(String alias) {
+    return $FollowsTable(attachedDatabase, alias);
+  }
+}
+
+class Follow extends DataClass implements Insertable<Follow> {
+  final int id;
+  final int followerId;
+  final int followingId;
+  final DateTime createdAt;
+  const Follow({
+    required this.id,
+    required this.followerId,
+    required this.followingId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['follower_id'] = Variable<int>(followerId);
+    map['following_id'] = Variable<int>(followingId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  FollowsCompanion toCompanion(bool nullToAbsent) {
+    return FollowsCompanion(
+      id: Value(id),
+      followerId: Value(followerId),
+      followingId: Value(followingId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Follow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Follow(
+      id: serializer.fromJson<int>(json['id']),
+      followerId: serializer.fromJson<int>(json['followerId']),
+      followingId: serializer.fromJson<int>(json['followingId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'followerId': serializer.toJson<int>(followerId),
+      'followingId': serializer.toJson<int>(followingId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Follow copyWith({
+    int? id,
+    int? followerId,
+    int? followingId,
+    DateTime? createdAt,
+  }) => Follow(
+    id: id ?? this.id,
+    followerId: followerId ?? this.followerId,
+    followingId: followingId ?? this.followingId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Follow copyWithCompanion(FollowsCompanion data) {
+    return Follow(
+      id: data.id.present ? data.id.value : this.id,
+      followerId: data.followerId.present
+          ? data.followerId.value
+          : this.followerId,
+      followingId: data.followingId.present
+          ? data.followingId.value
+          : this.followingId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Follow(')
+          ..write('id: $id, ')
+          ..write('followerId: $followerId, ')
+          ..write('followingId: $followingId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, followerId, followingId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Follow &&
+          other.id == this.id &&
+          other.followerId == this.followerId &&
+          other.followingId == this.followingId &&
+          other.createdAt == this.createdAt);
+}
+
+class FollowsCompanion extends UpdateCompanion<Follow> {
+  final Value<int> id;
+  final Value<int> followerId;
+  final Value<int> followingId;
+  final Value<DateTime> createdAt;
+  const FollowsCompanion({
+    this.id = const Value.absent(),
+    this.followerId = const Value.absent(),
+    this.followingId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  FollowsCompanion.insert({
+    this.id = const Value.absent(),
+    required int followerId,
+    required int followingId,
+    this.createdAt = const Value.absent(),
+  }) : followerId = Value(followerId),
+       followingId = Value(followingId);
+  static Insertable<Follow> custom({
+    Expression<int>? id,
+    Expression<int>? followerId,
+    Expression<int>? followingId,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (followerId != null) 'follower_id': followerId,
+      if (followingId != null) 'following_id': followingId,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  FollowsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? followerId,
+    Value<int>? followingId,
+    Value<DateTime>? createdAt,
+  }) {
+    return FollowsCompanion(
+      id: id ?? this.id,
+      followerId: followerId ?? this.followerId,
+      followingId: followingId ?? this.followingId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (followerId.present) {
+      map['follower_id'] = Variable<int>(followerId.value);
+    }
+    if (followingId.present) {
+      map['following_id'] = Variable<int>(followingId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FollowsCompanion(')
+          ..write('id: $id, ')
+          ..write('followerId: $followerId, ')
+          ..write('followingId: $followingId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1964,6 +2283,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $PostLikesTable postLikes = $PostLikesTable(this);
+  late final $FollowsTable follows = $FollowsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1974,6 +2294,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     comments,
     commentReactions,
     postLikes,
+    follows,
   ];
 }
 
@@ -4435,6 +4756,385 @@ typedef $$PostLikesTableProcessedTableManager =
       PostLike,
       PrefetchHooks Function({bool postId, bool userId})
     >;
+typedef $$FollowsTableCreateCompanionBuilder =
+    FollowsCompanion Function({
+      Value<int> id,
+      required int followerId,
+      required int followingId,
+      Value<DateTime> createdAt,
+    });
+typedef $$FollowsTableUpdateCompanionBuilder =
+    FollowsCompanion Function({
+      Value<int> id,
+      Value<int> followerId,
+      Value<int> followingId,
+      Value<DateTime> createdAt,
+    });
+
+final class $$FollowsTableReferences
+    extends BaseReferences<_$AppDatabase, $FollowsTable, Follow> {
+  $$FollowsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $UsersTable _followerIdTable(_$AppDatabase db) => db.users.createAlias(
+    $_aliasNameGenerator(db.follows.followerId, db.users.id),
+  );
+
+  $$UsersTableProcessedTableManager get followerId {
+    final $_column = $_itemColumn<int>('follower_id')!;
+
+    final manager = $$UsersTableTableManager(
+      $_db,
+      $_db.users,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_followerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $UsersTable _followingIdTable(_$AppDatabase db) => db.users
+      .createAlias($_aliasNameGenerator(db.follows.followingId, db.users.id));
+
+  $$UsersTableProcessedTableManager get followingId {
+    final $_column = $_itemColumn<int>('following_id')!;
+
+    final manager = $$UsersTableTableManager(
+      $_db,
+      $_db.users,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_followingIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$FollowsTableFilterComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$UsersTableFilterComposer get followerId {
+    final $$UsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followerId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableFilterComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableFilterComposer get followingId {
+    final $$UsersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followingId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableFilterComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FollowsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$UsersTableOrderingComposer get followerId {
+    final $$UsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followerId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableOrderingComposer get followingId {
+    final $$UsersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followingId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableOrderingComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FollowsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FollowsTable> {
+  $$FollowsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$UsersTableAnnotationComposer get followerId {
+    final $$UsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followerId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$UsersTableAnnotationComposer get followingId {
+    final $$UsersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.followingId,
+      referencedTable: $db.users,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UsersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.users,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FollowsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FollowsTable,
+          Follow,
+          $$FollowsTableFilterComposer,
+          $$FollowsTableOrderingComposer,
+          $$FollowsTableAnnotationComposer,
+          $$FollowsTableCreateCompanionBuilder,
+          $$FollowsTableUpdateCompanionBuilder,
+          (Follow, $$FollowsTableReferences),
+          Follow,
+          PrefetchHooks Function({bool followerId, bool followingId})
+        > {
+  $$FollowsTableTableManager(_$AppDatabase db, $FollowsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FollowsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FollowsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FollowsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> followerId = const Value.absent(),
+                Value<int> followingId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => FollowsCompanion(
+                id: id,
+                followerId: followerId,
+                followingId: followingId,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int followerId,
+                required int followingId,
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => FollowsCompanion.insert(
+                id: id,
+                followerId: followerId,
+                followingId: followingId,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FollowsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({followerId = false, followingId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (followerId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.followerId,
+                                referencedTable: $$FollowsTableReferences
+                                    ._followerIdTable(db),
+                                referencedColumn: $$FollowsTableReferences
+                                    ._followerIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (followingId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.followingId,
+                                referencedTable: $$FollowsTableReferences
+                                    ._followingIdTable(db),
+                                referencedColumn: $$FollowsTableReferences
+                                    ._followingIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FollowsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FollowsTable,
+      Follow,
+      $$FollowsTableFilterComposer,
+      $$FollowsTableOrderingComposer,
+      $$FollowsTableAnnotationComposer,
+      $$FollowsTableCreateCompanionBuilder,
+      $$FollowsTableUpdateCompanionBuilder,
+      (Follow, $$FollowsTableReferences),
+      Follow,
+      PrefetchHooks Function({bool followerId, bool followingId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4449,4 +5149,6 @@ class $AppDatabaseManager {
       $$CommentReactionsTableTableManager(_db, _db.commentReactions);
   $$PostLikesTableTableManager get postLikes =>
       $$PostLikesTableTableManager(_db, _db.postLikes);
+  $$FollowsTableTableManager get follows =>
+      $$FollowsTableTableManager(_db, _db.follows);
 }

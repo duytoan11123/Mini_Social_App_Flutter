@@ -45,3 +45,18 @@ class PostLikes extends Table {
   IntColumn get userId => integer().references(Users, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
+
+// Bảng lưu quan hệ theo dõi
+class Follows extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  // Người đi theo dõi (Me)
+  IntColumn get followerId => integer().references(Users, #id)();
+  // Người được theo dõi (You)
+  IntColumn get followingId => integer().references(Users, #id)();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  // Một người chỉ theo dõi một người khác 1 lần duy nhất
+  @override
+  List<Set<Column>> get uniqueKeys => [{followerId, followingId}];
+}

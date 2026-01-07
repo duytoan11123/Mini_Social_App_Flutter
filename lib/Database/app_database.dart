@@ -10,12 +10,12 @@ part 'app_database.g.dart';
 late AppDatabase db;
 int? currentUserId;
 
-@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions, PostLikes])
+@DriftDatabase(tables: [Posts, Users, Comments, CommentReactions, PostLikes, Follows])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 9;
 
   /// Đăng ký tài khoản mới
   Future<User?> register(
@@ -322,6 +322,58 @@ class AppDatabase extends _$AppDatabase {
     return update(users).replace(user);
   }
 
+  // ==========================
+  // ====== FOLLOW SYSTEM =====
+  // ==========================
+
+  // 1. Kiểm tra trạng thái follow
+  Future<bool> isFollowing(int followerId, int followingId) async {
+    final result = await (select(follows)
+      ..where((t) =>
+      t.followerId.equals(followerId) & t.followingId.equals(followingId)))
+        .getSingleOrNull();
+    return result != null;
+  }
+
+  // 2. Toggle Follow (Bấm nút Follow/Unfollow)
+  Future<void> toggleFollow(int followerId, int followingId) async {
+    final isAlreadyFollowing = await isFollowing(followerId, followingId);
+
+    if (isAlreadyFollowing) {
+      // Đang follow -> Xóa (Unfollow)
+      await (delete(follows)
+        ..where((t) =>
+        t.followerId.equals(followerId) &
+        t.followingId.equals(followingId)))
+          .go();
+    } else {
+      // Chưa follow -> Thêm mới
+      await into(follows).insert(FollowsCompanion(
+        followerId: Value(followerId),
+        followingId: Value(followingId),
+      ));
+    }
+  }
+
+  // 3. Đếm số người đang theo dõi mình (Followers Count)
+  Stream<int> watchFollowersCount(int userId) {
+    final query = selectOnly(follows)
+      ..addColumns([follows.id.count()])
+      ..where(follows.followingId.equals(userId));
+
+    return query.map((row) => row.read(follows.id.count())!).watchSingle();
+  }
+
+  // 4. Đếm số người mình đang theo dõi (Following Count)
+  Stream<int> watchFollowingCount(int userId) {
+    final query = selectOnly(follows)
+      ..addColumns([follows.id.count()])
+      ..where(follows.followerId.equals(userId));
+
+    return query.map((row) => row.read(follows.id.count())!).watchSingle();
+  }
+
+
   // =========================
   // ===== POST LIKES =========
   // =========================
@@ -367,7 +419,54 @@ class AppDatabase extends _$AppDatabase {
       }
     });
   }
+
+  // =========================
+  // ===== TÌM KIẾM (SEARCH) =
+  // =========================
+
+  /// Tìm kiếm người dùng theo tên (Username)
+  Future<List<User>> searchUsers(String keyword) {
+    if(keyword.trim().isEmpty){
+      return Future.value([]);
+    }
+
+    return (select(users)
+      ..where((u) => u.userName.lower().like('%${keyword.toLowerCase()}%'))
+    ).get();
+  }
+
+  /// Tìm kiếm bài viết theo nội dung
+  Stream<List<PostWithUser>> searchPosts(String keyword) {
+    // Nếu từ khóa rỗng, trả về list rỗng
+    if (keyword.trim().isEmpty) {
+      return Stream.value([]);
+    }
+
+    final query = select(posts).join([
+      innerJoin(users, users.id.equalsExp(posts.authorId)), // Dùng innerJoin để đảm bảo lấy được user
+    ]);
+
+    // Thêm điều kiện tìm kiếm theo nội dung
+    query.where(posts.caption.lower().like('%${keyword.toLowerCase()}%'));
+
+    // Sắp xếp bài mới nhất lên đầu
+    query.orderBy([
+      OrderingTerm(expression: posts.createdAt, mode: OrderingMode.desc),
+    ]);
+
+    return query.watch().map((rows) {
+      return rows.map((row) {
+        return PostWithUser(
+          post: row.readTable(posts),
+          user: row.readTable(users),
+        );
+      }).toList();
+    });
+  }
+
 }
+
+
 
 // =========================
 // ===== KẾT NỐI DATABASE

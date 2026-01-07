@@ -102,6 +102,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 return ListView.builder(
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
+
                     return _CommentWithReplies(
                       commentWithUser: comments[index],
                       onReply: _setReplyTo,
@@ -196,12 +197,12 @@ class _CommentWithReplies extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rootCommentId = commentWithUser.comment.id;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _CommentItem(
-          commentWithUser: commentWithUser, 
+          commentWithUser: commentWithUser,
           onReply: () => onReply(rootCommentId, commentWithUser.user.userName),
           isReply: false,
         ),
@@ -232,11 +233,41 @@ class _CommentItem extends StatelessWidget {
   final VoidCallback onReply;
   final bool isReply;
 
-  const _CommentItem({required this.commentWithUser, required this.onReply, this.isReply = false});
+  const _CommentItem({
+    super.key,
+    required this.commentWithUser,
+    required this.onReply,
+    this.isReply = false
+  });
+
+  void _showOptions(BuildContext context){
+    showModalBottomSheet(
+      context: context,
+        builder: (ctx) => Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Xóa bình luận', style: TextStyle(color: Colors.red)),
+              onTap: () async {
+                Navigator.pop(ctx); // Đóng menu
+                // Gọi lệnh xóa trong database
+                await db.deleteComment(commentWithUser.comment.id);
+                if (context.mounted){
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã xóa bình luận')),
+                  );
+                }
+
+            }
+            )
+          ],
+        ),
+    );
+  }
 
   void _showReactionPicker(BuildContext context) {
     if (currentUserId == null) return;
-    
+
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Container(
@@ -258,6 +289,8 @@ class _CommentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = commentWithUser;
+    // Kiểm tra xem đây có phải comment của mình không
+    final isMyComment = currentUserId != null && c.comment.userId == currentUserId;
     return Padding(
       padding: EdgeInsets.only(left: isReply ? 50.0 : 12.0, right: 12.0, top: 8.0, bottom: 4.0),
       child: Row(
@@ -272,28 +305,31 @@ class _CommentItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Bubble + Reactions badge
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(c.user.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          if (c.comment.content != null && c.comment.content!.isNotEmpty)
-                            Text(c.comment.content!),
-                        ],
+                GestureDetector(
+                  // Nếu là comment của mình thì cho phép nhấn giữ để xóa
+                  onLongPress: isMyComment ? () => _showOptions(context) : null,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(c.user.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if (c.comment.content != null && c.comment.content!.isNotEmpty)
+                              Text(c.comment.content!),
+                          ],
+                        ),
                       ),
-                    ),
                     // Reaction badge
                     Positioned(
                       bottom: -8, right: 0,
                       child: _ReactionBadge(commentId: c.comment.id),
                     ),
                   ],
+                  ),
                 ),
                 // Ảnh đính kèm
                 if (c.comment.imageUrl != null)
@@ -352,7 +388,7 @@ class _UserReactionText extends StatelessWidget {
     if (currentUserId == null) {
       return Text('Thích', style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.w600));
     }
-    
+
     return FutureBuilder<String?>(
       future: db.getUserReaction(commentId, currentUserId!),
       builder: (context, snapshot) {
@@ -379,10 +415,10 @@ class _ReactionBadge extends StatelessWidget {
       builder: (context, snapshot) {
         final reactions = snapshot.data ?? [];
         if (reactions.isEmpty) return const SizedBox.shrink();
-        
+
         final total = reactions.fold<int>(0, (sum, r) => sum + r.count);
         final emojis = reactions.take(3).map((r) => reactionEmojis[r.reaction] ?? '').join();
-        
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(

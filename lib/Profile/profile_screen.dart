@@ -125,9 +125,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center, // Căn giữa số liệu bài viết
-                  children: [_buildStatColumn(_userPosts.length, "Bài viết")],
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Căn giữa số liệu bài viết
+                  children: [
+                    // Số bài viết
+                    _buildStatColumn(_userPosts.length, "Bài viết"),
+
+                    //Người theo dõi
+                    StreamBuilder<int>(
+                      stream: db.watchFollowersCount(_user!.id),
+                      builder: (context, snapshot){
+                        return _buildStatColumn(snapshot.data ?? 0, "Người theo dõi");
+                      },
+                    ),
+                    // Đang theo dõi
+                    StreamBuilder<int>(
+                      stream: db.watchFollowingCount(_user!.id),
+                      builder: (context, snapshot) {
+                        return _buildStatColumn(
+                            snapshot.data ?? 0, "Đang theo dõi");
+                      },
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -202,21 +220,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatColumn(int num, String label) {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           num.toString(),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         Container(
           margin: const EdgeInsets.only(top: 4),
           child: Text(
             label,
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+            style: const TextStyle(
+              fontSize: 13, // Giảm 1 size chữ  cho đỡ bị tràn dòng
+              color: Colors.grey,
+            ),
+            textAlign: TextAlign.center, // Căn giữa text
+            maxLines: 1, // Giới hạn 1 dòng
+            overflow: TextOverflow.clip, // Cắt bớt nếu quá dài
           ),
         ),
       ],
     );
   }
+
 
   // ---------------------------------------------------------
   // Widget Lưới ảnh (Grid Post)
