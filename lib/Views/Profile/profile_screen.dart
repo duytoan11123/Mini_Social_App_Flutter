@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import '../../Database/app_database.dart';
 
 import '../Auth/login_screen.dart';
-import '../Auth/auth_storage.dart';
 import '../Post/post_detail_screen.dart';
 import 'edit_profile_screen.dart';
-import '../../Controllers/user_controller.dart';
+import '../../Controllers/profile_controller.dart'; // 👈 Import Controller mới
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -26,30 +25,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadData();
   }
 
-  // Hàm load cả thông tin user VÀ bài viết của user đó
+  // 👇 SỬA: Gọi qua ProfileController và dùng Future.wait cho nhanh
   Future<void> _loadData() async {
     if (currentUserId == null) return;
 
-    // 1. Lấy thông tin User
-    final user = await UserController.instance.getUserById(currentUserId!);
+    try {
+      // Chạy song song 2 tác vụ: Lấy User và Lấy Bài viết
+      final results = await Future.wait([
+        ProfileController.instance.getUserById(currentUserId!),
+        ProfileController.instance.getUserPosts(currentUserId!),
+      ]);
 
-    // 2. Lấy danh sách bài viết của User này
-    final posts = await UserController.instance.getPostsByUserId(
-      currentUserId!,
-    );
-
-    if (mounted) {
-      setState(() {
-        _user = user;
-        _userPosts = posts; // Lưu bài viết vào list
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _user = results[0] as User?; // Kết quả thứ 1
+          _userPosts = results[1] as List<Post>; // Kết quả thứ 2
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("Lỗi load profile: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // 👇 SỬA: Gọi logout qua Controller
   Future<void> _handleLogout() async {
-    await AuthStorage.logout();
-    currentUserId = null;
+    await ProfileController.instance.logout();
+
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -79,13 +82,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: _handleLogout, // Tạm thời để nút logout ở đây
+            icon: const Icon(
+              Icons.logout,
+            ), // Đổi icon thành logout cho hợp ngữ cảnh
+            onPressed: _handleLogout,
           ),
         ],
       ),
       body: NestedScrollView(
-        // Phần Header (Thông tin cá nhân) cuộn được
         headerSliverBuilder: (context, _) {
           return [
             SliverList(
@@ -93,17 +97,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ];
         },
-        // 👇 Phần Body: Hiển thị trực tiếp Lưới ảnh (bỏ TabBar và TabBarView)
         body: _buildPostGrid(),
-      ), // Tab 2: Demo
+      ),
     );
   }
 
-  // ---------------------------------------------------------
-  // 👇 DÁN ĐOẠN NÀY VÀO ĐỂ SỬA LỖI _buildProfileHeader
-  // ---------------------------------------------------------
-
-  // Widget hiển thị thông tin cá nhân (Header)
   Widget _buildProfileHeader() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -118,9 +116,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 backgroundColor: Colors.grey[300],
                 backgroundImage:
                     (_user!.avatarUrl != null && _user!.avatarUrl!.isNotEmpty)
-                    ? FileImage(File(_user!.avatarUrl!))
+                    ? (_user!.avatarUrl!.startsWith('http')
+                          ? NetworkImage(_user!.avatarUrl!)
+                          : FileImage(File(_user!.avatarUrl!)) as ImageProvider)
                     : null,
-
                 child: (_user!.avatarUrl == null || _user!.avatarUrl!.isEmpty)
                     ? const Icon(Icons.person, size: 40, color: Colors.grey)
                     : null,
@@ -128,15 +127,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment
-                      .spaceEvenly, // Căn giữa số liệu bài viết
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     // Số bài viết
                     _buildStatColumn(_userPosts.length, "Bài viết"),
 
-                    //Người theo dõi
+                    // 👇 SỬA: Gọi Stream từ ProfileController
                     StreamBuilder<int>(
-                      stream: UserController.instance.watchFollowersCount(
+                      stream: ProfileController.instance.watchFollowersCount(
                         _user!.id,
                       ),
                       builder: (context, snapshot) {
@@ -146,9 +144,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         );
                       },
                     ),
-                    // Đang theo dõi
+
+                    // 👇 SỬA: Gọi Stream từ ProfileController
                     StreamBuilder<int>(
-                      stream: UserController.instance.watchFollowingCount(
+                      stream: ProfileController.instance.watchFollowingCount(
                         _user!.id,
                       ),
                       builder: (context, snapshot) {
@@ -166,18 +165,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 12),
 
-          // 3. Hiển thị Fullname (Tên đầy đủ)
-          // Nếu không có fullname thì hiện username
+          // Tên hiển thị
           Text(
             _user!.fullName ?? _user!.userName,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ), // Tăng size chữ lên một chút cho đẹp
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
 
-          // 4. Hiển thị Bio (Tiểu sử)
-          // Kiểm tra nếu bio có dữ liệu mới hiện
+          // Bio
           if (_user!.bio != null && _user!.bio!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -189,14 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 12),
 
-          // 5. Nút Chỉnh sửa (Giữ nguyên)
+          // Nút Chỉnh sửa
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: () async {
-                    // Chuyển sang trang EditProfileScreen
-                    // 'result' sẽ nhận về true nếu bấm Lưu, null nếu bấm Back
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -204,7 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     );
 
-                    // Nếu có thay đổi (result == true), load lại dữ liệu để cập nhật giao diện
+                    // Nếu có thay đổi (result == true), load lại dữ liệu
                     if (result == true) {
                       _loadData();
                     }
@@ -215,7 +207,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     side: BorderSide(color: Colors.grey.shade400),
                   ),
-
                   child: const Text(
                     "Chỉnh sửa trang cá nhân",
                     style: TextStyle(color: Colors.black),
@@ -229,7 +220,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget con hiển thị cột số liệu (Giữ nguyên để dùng cho phần "Bài viết")
   Widget _buildStatColumn(int num, String label) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -243,21 +233,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           margin: const EdgeInsets.only(top: 4),
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 13, // Giảm 1 size chữ  cho đỡ bị tràn dòng
-              color: Colors.grey,
-            ),
-            textAlign: TextAlign.center, // Căn giữa text
-            maxLines: 1, // Giới hạn 1 dòng
-            overflow: TextOverflow.clip, // Cắt bớt nếu quá dài
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
           ),
         ),
       ],
     );
   }
 
-  // ---------------------------------------------------------
-  // Widget Lưới ảnh (Grid Post)
   Widget _buildPostGrid() {
     if (_userPosts.isEmpty) {
       return const Center(
@@ -284,7 +269,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       itemBuilder: (context, index) {
         final post = _userPosts[index];
 
-        // 👇 Logic xử lý hiển thị ảnh (Mạng hoặc Local)
         Widget imageWidget;
         if (post.imageUrl.isNotEmpty) {
           bool isNetworkImage =
@@ -305,7 +289,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           }
         } else {
-          // Trường hợp không có ảnh -> Hiện text
           imageWidget = Container(
             color: Colors.blue[50],
             padding: const EdgeInsets.all(8),
@@ -321,25 +304,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
 
-        // 👇 BỌC TRONG INKWELL ĐỂ CLICK ĐƯỢC
         return InkWell(
           onTap: () {
-            // Chuyển sang trang chi tiết
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => PostDetailScreen(
-                  post: post,
-                  user: _user!, // Truyền user hiện tại vào
-                ),
+                builder: (context) =>
+                    PostDetailScreen(post: post, user: _user!),
               ),
             );
           },
-          child: Hero(
-            // Hiệu ứng phóng to ảnh khi chuyển trang (Tùy chọn)
-            tag: "post_${post.id}",
-            child: imageWidget,
-          ),
+          child: Hero(tag: "post_${post.id}", child: imageWidget),
         );
       },
     );
