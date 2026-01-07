@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:drift/drift.dart' as drift;
+
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../Database/app_database.dart';
+import '../../Database/app_database.dart';
+import '../../Controllers/comment_controller.dart';
 
 // Emoji reactions
 const Map<String, String> reactionEmojis = {
@@ -69,13 +70,13 @@ class _CommentsScreenState extends State<CommentsScreen> {
       return;
     }
 
-    await db.insertComment(CommentsCompanion(
-      postId: drift.Value(widget.postId),
-      userId: drift.Value(currentUserId!),
-      content: content.isNotEmpty ? drift.Value(content) : const drift.Value.absent(),
-      imageUrl: _selectedImage != null ? drift.Value(_selectedImage!.path) : const drift.Value.absent(),
-      parentId: _replyToCommentId != null ? drift.Value(_replyToCommentId) : const drift.Value.absent(),
-    ));
+    await CommentController.instance.addComment(
+      postId: widget.postId,
+      userId: currentUserId!,
+      content: content,
+      imageUrl: _selectedImage?.path,
+      parentId: _replyToCommentId,
+    );
 
     _commentController.clear();
     setState(() {
@@ -93,7 +94,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
         children: [
           Expanded(
             child: StreamBuilder<List<CommentWithUser>>(
-              stream: db.watchCommentsForPost(widget.postId),
+              stream: CommentController.instance.watchCommentsForPost(
+                widget.postId,
+              ),
               builder: (context, snapshot) {
                 final comments = snapshot.data ?? [];
                 if (comments.isEmpty) {
@@ -102,7 +105,6 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 return ListView.builder(
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
-
                     return _CommentWithReplies(
                       commentWithUser: comments[index],
                       onReply: _setReplyTo,
@@ -130,10 +132,19 @@ class _CommentsScreenState extends State<CommentsScreen> {
               color: Colors.grey[200],
               child: Row(
                 children: [
-                  Text('Đang trả lời ', style: TextStyle(color: Colors.grey[600])),
-                  Text(_replyToUserName!, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Đang trả lời ',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  Text(
+                    _replyToUserName!,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const Spacer(),
-                  GestureDetector(onTap: _cancelReply, child: const Icon(Icons.close, size: 18)),
+                  GestureDetector(
+                    onTap: _cancelReply,
+                    child: const Icon(Icons.close, size: 18),
+                  ),
                 ],
               ),
             ),
@@ -144,16 +155,28 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.file(_selectedImage!, height: 100, fit: BoxFit.cover),
+                    child: Image.file(
+                      _selectedImage!,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   Positioned(
-                    top: 4, right: 4,
+                    top: 4,
+                    right: 4,
                     child: GestureDetector(
                       onTap: () => setState(() => _selectedImage = null),
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                        child: const Icon(Icons.close, size: 16, color: Colors.white),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -164,20 +187,33 @@ class _CommentsScreenState extends State<CommentsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
             child: Row(
               children: [
-                IconButton(onPressed: _pickImage, icon: const Icon(Icons.image, color: Colors.blue)),
+                IconButton(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.image, color: Colors.blue),
+                ),
                 Expanded(
                   child: TextField(
                     controller: _commentController,
                     decoration: InputDecoration(
-                      hintText: _replyToUserName != null ? 'Trả lời $_replyToUserName...' : 'Viết bình luận...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      hintText: _replyToUserName != null
+                          ? 'Trả lời $_replyToUserName...'
+                          : 'Viết bình luận...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                     ),
                     maxLines: null,
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(onPressed: _addComment, icon: const Icon(Icons.send, color: Colors.blue)),
+                IconButton(
+                  onPressed: _addComment,
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                ),
               ],
             ),
           ),
@@ -192,7 +228,10 @@ class _CommentWithReplies extends StatelessWidget {
   final CommentWithUser commentWithUser;
   final Function(int, String) onReply; // parentId, userName
 
-  const _CommentWithReplies({required this.commentWithUser, required this.onReply});
+  const _CommentWithReplies({
+    required this.commentWithUser,
+    required this.onReply,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -208,17 +247,23 @@ class _CommentWithReplies extends StatelessWidget {
         ),
         // Replies luôn hiển thị bên dưới
         StreamBuilder<List<CommentWithUser>>(
-          stream: db.watchRepliesForComment(rootCommentId),
+          stream: CommentController.instance.watchRepliesForComment(
+            rootCommentId,
+          ),
           builder: (context, snapshot) {
             final replies = snapshot.data ?? [];
             if (replies.isEmpty) return const SizedBox.shrink();
             return Column(
-              children: replies.map((r) => _CommentItem(
-                commentWithUser: r,
-                // Reply của reply → vẫn reply vào comment gốc
-                onReply: () => onReply(rootCommentId, r.user.userName),
-                isReply: true,
-              )).toList(),
+              children: replies
+                  .map(
+                    (r) => _CommentItem(
+                      commentWithUser: r,
+                      // Reply của reply → vẫn reply vào comment gốc
+                      onReply: () => onReply(rootCommentId, r.user.userName),
+                      isReply: true,
+                    ),
+                  )
+                  .toList(),
             );
           },
         ),
@@ -226,7 +271,6 @@ class _CommentWithReplies extends StatelessWidget {
     );
   }
 }
-
 
 class _CommentItem extends StatelessWidget {
   final CommentWithUser commentWithUser;
@@ -237,31 +281,33 @@ class _CommentItem extends StatelessWidget {
     super.key,
     required this.commentWithUser,
     required this.onReply,
-    this.isReply = false
+    this.isReply = false,
   });
 
-  void _showOptions(BuildContext context){
+  void _showOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-        builder: (ctx) => Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Xóa bình luận', style: TextStyle(color: Colors.red)),
-              onTap: () async {
-                Navigator.pop(ctx); // Đóng menu
-                // Gọi lệnh xóa trong database
-                await db.deleteComment(commentWithUser.comment.id);
-                if (context.mounted){
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã xóa bình luận')),
-                  );
-                }
-
-            }
-            )
-          ],
-        ),
+      builder: (ctx) => Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text(
+              'Xóa bình luận',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () async {
+              Navigator.pop(ctx); // Đóng menu
+              // Gọi lệnh xóa trong database
+              await db.deleteComment(commentWithUser.comment.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đã xóa bình luận')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -274,13 +320,21 @@ class _CommentItem extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: reactionEmojis.entries.map((e) => GestureDetector(
-            onTap: () {
-              db.toggleReaction(commentWithUser.comment.id, currentUserId!, e.key);
-              Navigator.pop(ctx);
-            },
-            child: Text(e.value, style: const TextStyle(fontSize: 32)),
-          )).toList(),
+          children: reactionEmojis.entries
+              .map(
+                (e) => GestureDetector(
+                  onTap: () {
+                    db.toggleReaction(
+                      commentWithUser.comment.id,
+                      currentUserId!,
+                      e.key,
+                    );
+                    Navigator.pop(ctx);
+                  },
+                  child: Text(e.value, style: const TextStyle(fontSize: 32)),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
@@ -290,15 +344,23 @@ class _CommentItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = commentWithUser;
     // Kiểm tra xem đây có phải comment của mình không
-    final isMyComment = currentUserId != null && c.comment.userId == currentUserId;
+    final isMyComment =
+        currentUserId != null && c.comment.userId == currentUserId;
     return Padding(
-      padding: EdgeInsets.only(left: isReply ? 50.0 : 12.0, right: 12.0, top: 8.0, bottom: 4.0),
+      padding: EdgeInsets.only(
+        left: isReply ? 50.0 : 12.0,
+        right: 12.0,
+        top: 8.0,
+        bottom: 4.0,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: isReply ? 14 : 18,
-            backgroundImage: NetworkImage(c.user.avatarUrl ?? 'https://via.placeholder.com/150'),
+            backgroundImage: NetworkImage(
+              c.user.avatarUrl ?? 'https://via.placeholder.com/150',
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -313,22 +375,32 @@ class _CommentItem extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(c.user.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            if (c.comment.content != null && c.comment.content!.isNotEmpty)
+                            Text(
+                              c.user.userName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (c.comment.content != null &&
+                                c.comment.content!.isNotEmpty)
                               Text(c.comment.content!),
                           ],
                         ),
                       ),
-                    // Reaction badge
-                    Positioned(
-                      bottom: -8, right: 0,
-                      child: _ReactionBadge(commentId: c.comment.id),
-                    ),
-                  ],
+                      // Reaction badge
+                      Positioned(
+                        bottom: -8,
+                        right: 0,
+                        child: _ReactionBadge(commentId: c.comment.id),
+                      ),
+                    ],
                   ),
                 ),
                 // Ảnh đính kèm
@@ -337,7 +409,11 @@ class _CommentItem extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 8),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(File(c.comment.imageUrl!), width: 200, fit: BoxFit.cover),
+                      child: Image.file(
+                        File(c.comment.imageUrl!),
+                        width: 200,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 // Actions
@@ -345,7 +421,10 @@ class _CommentItem extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6, left: 8),
                   child: Row(
                     children: [
-                      Text(_formatTime(c.comment.createdAt), style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      Text(
+                        _formatTime(c.comment.createdAt),
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
                       const SizedBox(width: 16),
                       GestureDetector(
                         onTap: () => _showReactionPicker(context),
@@ -354,7 +433,14 @@ class _CommentItem extends StatelessWidget {
                       const SizedBox(width: 16),
                       GestureDetector(
                         onTap: onReply,
-                        child: Text('Trả lời', style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.w600)),
+                        child: Text(
+                          'Trả lời',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -376,7 +462,6 @@ class _CommentItem extends StatelessWidget {
   }
 }
 
-
 // Hiển thị text "Thích" hoặc emoji nếu user đã react
 class _UserReactionText extends StatelessWidget {
   final int commentId;
@@ -386,17 +471,37 @@ class _UserReactionText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (currentUserId == null) {
-      return Text('Thích', style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.w600));
+      return Text(
+        'Thích',
+        style: TextStyle(
+          color: Colors.grey[700],
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      );
     }
 
     return FutureBuilder<String?>(
-      future: db.getUserReaction(commentId, currentUserId!),
+      future: CommentController.instance.getUserReaction(
+        commentId,
+        currentUserId!,
+      ),
       builder: (context, snapshot) {
         final reaction = snapshot.data;
         if (reaction != null && reactionEmojis.containsKey(reaction)) {
-          return Text(reactionEmojis[reaction]!, style: const TextStyle(fontSize: 14));
+          return Text(
+            reactionEmojis[reaction]!,
+            style: const TextStyle(fontSize: 14),
+          );
         }
-        return Text('Thích', style: TextStyle(color: Colors.grey[700], fontSize: 12, fontWeight: FontWeight.w600));
+        return Text(
+          'Thích',
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        );
       },
     );
   }
@@ -411,13 +516,16 @@ class _ReactionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ReactionCount>>(
-      stream: db.watchReactionsForComment(commentId),
+      stream: CommentController.instance.watchReactionsForComment(commentId),
       builder: (context, snapshot) {
         final reactions = snapshot.data ?? [];
         if (reactions.isEmpty) return const SizedBox.shrink();
 
         final total = reactions.fold<int>(0, (sum, r) => sum + r.count);
-        final emojis = reactions.take(3).map((r) => reactionEmojis[r.reaction] ?? '').join();
+        final emojis = reactions
+            .take(3)
+            .map((r) => reactionEmojis[r.reaction] ?? '')
+            .join();
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -431,7 +539,10 @@ class _ReactionBadge extends StatelessWidget {
             children: [
               Text(emojis, style: const TextStyle(fontSize: 12)),
               const SizedBox(width: 4),
-              Text('$total', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                '$total',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
             ],
           ),
         );

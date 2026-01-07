@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
-import '../main.dart'; // Chứa biến db và currentUserId
-import '../Login/login_screen.dart';
-import '../Login/auth_storage.dart';
-import '../NewsFeedScreen/post_detail_screen.dart';
-import 'edit_profile_screen.dart'; //
+import '../../Database/app_database.dart';
+
+import '../Auth/login_screen.dart';
+import '../Auth/auth_storage.dart';
+import '../Post/post_detail_screen.dart';
+import 'edit_profile_screen.dart';
+import '../../Controllers/user_controller.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,10 +31,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (currentUserId == null) return;
 
     // 1. Lấy thông tin User
-    final user = await db.getUserById(currentUserId!);
+    final user = await UserController.instance.getUserById(currentUserId!);
 
-    // 2. Lấy danh sách bài viết của User này (MỚI)
-    final posts = await db.getPostsByUserId(currentUserId!);
+    // 2. Lấy danh sách bài viết của User này
+    final posts = await UserController.instance.getPostsByUserId(
+      currentUserId!,
+    );
 
     if (mounted) {
       setState(() {
@@ -125,24 +128,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 20),
               Expanded(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Căn giữa số liệu bài viết
+                  mainAxisAlignment: MainAxisAlignment
+                      .spaceEvenly, // Căn giữa số liệu bài viết
                   children: [
                     // Số bài viết
                     _buildStatColumn(_userPosts.length, "Bài viết"),
 
                     //Người theo dõi
                     StreamBuilder<int>(
-                      stream: db.watchFollowersCount(_user!.id),
-                      builder: (context, snapshot){
-                        return _buildStatColumn(snapshot.data ?? 0, "Người theo dõi");
+                      stream: UserController.instance.watchFollowersCount(
+                        _user!.id,
+                      ),
+                      builder: (context, snapshot) {
+                        return _buildStatColumn(
+                          snapshot.data ?? 0,
+                          "Người theo dõi",
+                        );
                       },
                     ),
                     // Đang theo dõi
                     StreamBuilder<int>(
-                      stream: db.watchFollowingCount(_user!.id),
+                      stream: UserController.instance.watchFollowingCount(
+                        _user!.id,
+                      ),
                       builder: (context, snapshot) {
                         return _buildStatColumn(
-                            snapshot.data ?? 0, "Đang theo dõi");
+                          snapshot.data ?? 0,
+                          "Đang theo dõi",
+                        );
                       },
                     ),
                   ],
@@ -243,7 +256,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
   // ---------------------------------------------------------
   // Widget Lưới ảnh (Grid Post)
   Widget _buildPostGrid() {
@@ -274,7 +286,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         // 👇 Logic xử lý hiển thị ảnh (Mạng hoặc Local)
         Widget imageWidget;
-        if (post.imageUrl != null && post.imageUrl.isNotEmpty) {
+        if (post.imageUrl.isNotEmpty) {
           bool isNetworkImage =
               post.imageUrl.startsWith('http') ||
               post.imageUrl.startsWith('https');

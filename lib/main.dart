@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'Database/app_database.dart';
-import 'Login/login_screen.dart';
-import 'Login/auth_storage.dart';
-import 'NewsFeedScreen/news_feed_screen.dart';
+import 'Views/Auth/login_screen.dart';
+import 'Views/Auth/auth_storage.dart';
+import 'Views/Post/news_feed_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

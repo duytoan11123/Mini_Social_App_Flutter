@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
+import '../../Database/app_database.dart';
+import '../../Controllers/post_controller.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:drift/drift.dart' as drift;
 
 class CreatePostForm extends StatefulWidget {
   CreatePostForm({super.key});
@@ -41,14 +41,19 @@ class _CreatePostFormState extends State<CreatePostForm> {
       return;
     }
 
-    await db.insertPost(
-      PostsCompanion(
-        authorId: drift.Value(currentUserId!),
-        caption: drift.Value(_captionController.text),
-        imageUrl: drift.Value(_selectedImage!.path),
-      ),
-    );
-    Navigator.pop(context);
+    try {
+      await PostController.instance.createPost(
+        _selectedImage!.path,
+        _captionController.text,
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
+    }
   }
 
   @override

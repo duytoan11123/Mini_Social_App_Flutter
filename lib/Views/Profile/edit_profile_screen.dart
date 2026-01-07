@@ -1,8 +1,7 @@
 import 'dart:io'; // 👈 Bắt buộc có để dùng biến File
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; // Thư viện chọn ảnh
-import '../Database/app_database.dart';
-import '../main.dart';
+import '../../Database/app_database.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final User user;

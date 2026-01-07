@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
-import '../utils/password_utils.dart';
+import '../../Controllers/auth_controller.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -61,11 +60,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _loading = true);
 
     try {
-      final hashedPassword = PasswordUtils.hash(password);
-
-      final user = await db.register(
-        username,
-        hashedPassword,
+      final user = await AuthController.instance.register(
+        username: username,
+        password: password,
         email: email,
       );
 
@@ -87,18 +84,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) Navigator.pop(context);
-
     } catch (e) {
       setState(() => _loading = false);
       _msg('Lỗi: $e');
     }
   }
 
-
   void _msg(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -232,17 +225,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           child: _loading
                               ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
                               : const Text(
-                            'Đăng ký',
-                            style: TextStyle(fontSize: 16),
-                          ),
+                                  'Đăng ký',
+                                  style: TextStyle(fontSize: 16),
+                                ),
                         ),
                       ),
 
@@ -282,9 +275,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         prefixIcon: Icon(icon),
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         suffixIcon: suffix,
       ),
     );

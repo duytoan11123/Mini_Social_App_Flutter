@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
-import 'package:drift/drift.dart' hide Column; // Ẩn Column của drift để tránh trùng
+import '../../Database/app_database.dart';
+import '../../Controllers/post_controller.dart';
+import '../../Controllers/comment_controller.dart';
+import '../../Controllers/user_controller.dart';
+
 import 'dart:io';
-import 'comments_screen.dart';
+import '../Comment/comments_screen.dart';
 
 class PostItem extends StatefulWidget {
   final PostWithUser post;
@@ -34,11 +37,7 @@ class _PostItemState extends State<PostItem> {
   }
 
   Future<void> _checkLikeStatus() async {
-    if (currentUserId == null) return;
-    final liked = await db.hasUserLikedPost(
-      widget.post.post.id,
-      currentUserId!,
-    );
+    final liked = await PostController.instance.hasLiked(widget.post.post.id);
     if (mounted) {
       setState(() {
         _isLiked = liked;
@@ -46,13 +45,14 @@ class _PostItemState extends State<PostItem> {
     }
   }
 
-  // Hàm kiểm tra trạng thái Follow
   Future<void> _checkFollowStatus() async {
     if (currentUserId == null) return;
-    // Không cần check nếu là bài của chính mình
     if (widget.post.user.id == currentUserId) return;
 
-    final following = await db.isFollowing(currentUserId!, widget.post.user.id);
+    final following = await UserController.instance.isFollowing(
+      currentUserId!,
+      widget.post.user.id,
+    );
     if (mounted) {
       setState(() {
         _isFollowing = following;
@@ -61,37 +61,32 @@ class _PostItemState extends State<PostItem> {
   }
 
   Future<void> _toggleLike() async {
-    if (currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng đăng nhập để thích bài viết')),
-      );
-      return;
-    }
-
-    // Cập nhật giao diện ngay lập tức
-    setState(() {
-      _isLiked = !_isLiked;
-    });
-
     try {
-      await db.togglePostLike(widget.post.post.id, currentUserId!);
+      // Optimistic update
+      setState(() {
+        _isLiked = !_isLiked;
+      });
+
+      await PostController.instance.toggleLike(widget.post.post.id);
     } catch (e) {
-      // Hoàn tác nếu lỗi
+      // Revert if error
       if (mounted) {
         setState(() {
           _isLiked = !_isLiked;
         });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
       }
-      debugPrint('Error toggling like: $e');
     }
   }
 
   // Hàm xử lý bấm nút Follow
   Future<void> _toggleFollow() async {
     if (currentUserId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng đăng nhập')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vui lòng đăng nhập')));
       return;
     }
 
@@ -101,7 +96,10 @@ class _PostItemState extends State<PostItem> {
     });
 
     try {
-      await db.toggleFollow(currentUserId!, widget.post.user.id);
+      await UserController.instance.toggleFollow(
+        currentUserId!,
+        widget.post.user.id,
+      );
     } catch (e) {
       // Hoàn tác nếu lỗi
       if (mounted) {
@@ -138,7 +136,7 @@ class _PostItemState extends State<PostItem> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context); // Đóng dialog
-              await db.deletePost(widget.post.post.id);
+              await PostController.instance.deletePost(widget.post.post.id);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Đã xóa bài viết')),
@@ -175,10 +173,10 @@ class _PostItemState extends State<PostItem> {
               final newCaption = _editController.text.trim();
               Navigator.pop(context); // Đóng dialog
 
-              final updatedPost = widget.post.post.copyWith(
-                caption: Value(newCaption),
+              await PostController.instance.updatePost(
+                widget.post.post,
+                newCaption,
               );
-              await db.updatePost(updatedPost);
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -208,15 +206,17 @@ class _PostItemState extends State<PostItem> {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: Colors.grey[300],
-                backgroundImage: (post.user.avatarUrl != null &&
-                    post.user.avatarUrl!.isNotEmpty)
+                backgroundImage:
+                    (post.user.avatarUrl != null &&
+                        post.user.avatarUrl!.isNotEmpty)
                     ? (post.user.avatarUrl!.startsWith('http')
-                    ? NetworkImage(post.user.avatarUrl!)
-                    : FileImage(File(post.user.avatarUrl!)))
-                as ImageProvider
+                              ? NetworkImage(post.user.avatarUrl!)
+                              : FileImage(File(post.user.avatarUrl!)))
+                          as ImageProvider
                     : null,
-                child: (post.user.avatarUrl == null ||
-                    post.user.avatarUrl!.isEmpty)
+                child:
+                    (post.user.avatarUrl == null ||
+                        post.user.avatarUrl!.isEmpty)
                     ? const Icon(Icons.person, size: 20, color: Colors.grey)
                     : null,
               ),
@@ -238,8 +238,10 @@ class _PostItemState extends State<PostItem> {
                   onTap: _toggleFollow,
                   child: Container(
                     margin: const EdgeInsets.only(left: 8, right: 4),
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: _isFollowing ? Colors.transparent : Colors.blue,
                       border: _isFollowing
@@ -302,21 +304,21 @@ class _PostItemState extends State<PostItem> {
         // Ảnh bài đăng (Xử lý an toàn)
         (post.post.imageUrl.startsWith('http'))
             ? Image.network(
-          post.post.imageUrl,
-          width: double.infinity,
-          height: 400,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-              Container(color: Colors.grey[200]),
-        )
+                post.post.imageUrl,
+                width: double.infinity,
+                height: 400,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    Container(color: Colors.grey[200]),
+              )
             : Image.file(
-          File(post.post.imageUrl),
-          width: double.infinity,
-          height: 400,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-              Container(color: Colors.grey[200]),
-        ),
+                File(post.post.imageUrl),
+                width: double.infinity,
+                height: 400,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    Container(color: Colors.grey[200]),
+              ),
 
         // Biểu tượng Thích và Bình luận
         Padding(
@@ -372,7 +374,7 @@ class _PostItemState extends State<PostItem> {
           child: GestureDetector(
             onTap: () => _openComments(context),
             child: FutureBuilder<int>(
-              future: db.getCommentCount(post.post.id),
+              future: CommentController.instance.getCommentCount(post.post.id),
               builder: (context, snapshot) {
                 final count = snapshot.data ?? 0;
                 if (count <= 2) return const SizedBox.shrink();
@@ -387,7 +389,10 @@ class _PostItemState extends State<PostItem> {
 
         // Hiển thị 2 bình luận mới nhất
         FutureBuilder<List<CommentWithUser>>(
-          future: db.getRecentComments(post.post.id, limit: 2),
+          future: CommentController.instance.getRecentComments(
+            post.post.id,
+            limit: 2,
+          ),
           builder: (context, snapshot) {
             final comments = snapshot.data ?? [];
             if (comments.isEmpty) return const SizedBox.shrink();
@@ -401,44 +406,46 @@ class _PostItemState extends State<PostItem> {
                 children: comments
                     .map(
                       (c) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundImage: (c.user.avatarUrl != null &&
-                              c.user.avatarUrl!.isNotEmpty)
-                              ? NetworkImage(c.user.avatarUrl!)
-                              : const NetworkImage(
-                              'https://via.placeholder.com/150'),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              RichText(
-                                text: TextSpan(
-                                  style: DefaultTextStyle.of(context).style,
-                                  children: [
-                                    TextSpan(
-                                      text: '${c.user.userName}  ',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundImage:
+                                  (c.user.avatarUrl != null &&
+                                      c.user.avatarUrl!.isNotEmpty)
+                                  ? NetworkImage(c.user.avatarUrl!)
+                                  : const NetworkImage(
+                                      'https://via.placeholder.com/150',
                                     ),
-                                    TextSpan(text: c.comment.content),
-                                  ],
-                                ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  RichText(
+                                    text: TextSpan(
+                                      style: DefaultTextStyle.of(context).style,
+                                      children: [
+                                        TextSpan(
+                                          text: '${c.user.userName}  ',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        TextSpan(text: c.comment.content),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                )
+                      ),
+                    )
                     .toList(),
               ),
             );

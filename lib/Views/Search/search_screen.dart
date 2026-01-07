@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../Database/app_database.dart';
+import '../../Database/app_database.dart';
+import '../../Controllers/user_controller.dart';
 import '../Profile/user_profile_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -56,18 +57,18 @@ class _SearchScreenState extends State<SearchScreen> {
       // Body không cần TabBarView nữa, hiển thị trực tiếp kết quả User
       body: _keyword.isEmpty
           ? const Center(
-        child: Text(
-          "Nhập tên để tìm kiếm bạn bè",
-          style: TextStyle(color: Colors.grey, fontSize: 16),
-        ),
-      )
+              child: Text(
+                "Nhập tên để tìm kiếm bạn bè",
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            )
           : _buildUserResults(),
     );
   }
 
   Widget _buildUserResults() {
     return FutureBuilder<List<User>>(
-      future: db.searchUsers(_keyword),
+      future: UserController.instance.searchUsers(_keyword),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -93,30 +94,44 @@ class _SearchScreenState extends State<SearchScreen> {
           itemBuilder: (context, index) {
             final user = users[index];
             return ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
               leading: CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.blueAccent,
                 // Hiển thị Avatar nếu có, không thì hiện chữ cái đầu
-                backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                backgroundImage:
+                    (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
                     ? NetworkImage(user.avatarUrl!) as ImageProvider
                     : null,
                 child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
                     ? Text(
-                  user.userName[0].toUpperCase(),
-                  style: const TextStyle(color: Colors.white, fontSize: 18),
-                )
+                        user.userName[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                        ),
+                      )
                     : null,
               ),
               title: Text(
                 user.fullName ?? user.userName, // Ưu tiên hiện tên đầy đủ
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               subtitle: Text(
                 '@${user.userName}', // Hiện username bên dưới
                 style: const TextStyle(color: Colors.grey),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey,
+              ),
               onTap: () {
                 Navigator.push(
                   context,
