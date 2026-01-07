@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../Database/app_database.dart';
-import 'package:drift/drift.dart'
-    hide Column; // Hide Column to avoid conflict with Material Column
+import 'package:drift/drift.dart' hide Column; // Ẩn Column của drift để tránh trùng
 import 'dart:io';
 import 'comments_screen.dart';
 
@@ -16,11 +15,13 @@ class PostItem extends StatefulWidget {
 
 class _PostItemState extends State<PostItem> {
   bool _isLiked = false;
+  bool _isFollowing = false; // Biến lưu trạng thái follow
 
   @override
   void initState() {
     super.initState();
     _checkLikeStatus();
+    _checkFollowStatus(); // Gọi hàm kiểm tra follow khi khởi tạo
   }
 
   @override
@@ -28,6 +29,7 @@ class _PostItemState extends State<PostItem> {
     super.didUpdateWidget(oldWidget);
     if (widget.post.post.id != oldWidget.post.post.id) {
       _checkLikeStatus();
+      _checkFollowStatus(); // Cập nhật lại nếu widget hiển thị bài khác
     }
   }
 
@@ -44,6 +46,20 @@ class _PostItemState extends State<PostItem> {
     }
   }
 
+  // Hàm kiểm tra trạng thái Follow
+  Future<void> _checkFollowStatus() async {
+    if (currentUserId == null) return;
+    // Không cần check nếu là bài của chính mình
+    if (widget.post.user.id == currentUserId) return;
+
+    final following = await db.isFollowing(currentUserId!, widget.post.user.id);
+    if (mounted) {
+      setState(() {
+        _isFollowing = following;
+      });
+    }
+  }
+
   Future<void> _toggleLike() async {
     if (currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -52,7 +68,7 @@ class _PostItemState extends State<PostItem> {
       return;
     }
 
-    // Optimistic update
+    // Cập nhật giao diện ngay lập tức
     setState(() {
       _isLiked = !_isLiked;
     });
@@ -60,13 +76,40 @@ class _PostItemState extends State<PostItem> {
     try {
       await db.togglePostLike(widget.post.post.id, currentUserId!);
     } catch (e) {
-      // Revert if error
+      // Hoàn tác nếu lỗi
       if (mounted) {
         setState(() {
           _isLiked = !_isLiked;
         });
       }
       debugPrint('Error toggling like: $e');
+    }
+  }
+
+  // Hàm xử lý bấm nút Follow
+  Future<void> _toggleFollow() async {
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng đăng nhập')),
+      );
+      return;
+    }
+
+    // Cập nhật giao diện ngay lập tức
+    setState(() {
+      _isFollowing = !_isFollowing;
+    });
+
+    try {
+      await db.toggleFollow(currentUserId!, widget.post.user.id);
+    } catch (e) {
+      // Hoàn tác nếu lỗi
+      if (mounted) {
+        setState(() {
+          _isFollowing = !_isFollowing;
+        });
+      }
+      debugPrint('Error toggling follow: $e');
     }
   }
 
@@ -156,32 +199,67 @@ class _PostItemState extends State<PostItem> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        //  Avatar và Tên người dùng
+        // Avatar và Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           child: Row(
             children: [
+              // 1. Avatar (Xử lý an toàn)
               CircleAvatar(
                 radius: 18,
                 backgroundColor: Colors.grey[300],
-                backgroundImage:
-                    (post.user.avatarUrl != null &&
-                        post.user.avatarUrl!.isNotEmpty)
-                    ? FileImage(File(post.user.avatarUrl!))
+                backgroundImage: (post.user.avatarUrl != null &&
+                    post.user.avatarUrl!.isNotEmpty)
+                    ? (post.user.avatarUrl!.startsWith('http')
+                    ? NetworkImage(post.user.avatarUrl!)
+                    : FileImage(File(post.user.avatarUrl!)))
+                as ImageProvider
                     : null,
-                // 👇 FALLBACK: Nếu không có ảnh thì hiện icon người
-                child:
-                    (post.user.avatarUrl == null ||
-                        post.user.avatarUrl!.isEmpty)
+                child: (post.user.avatarUrl == null ||
+                    post.user.avatarUrl!.isEmpty)
                     ? const Icon(Icons.person, size: 20, color: Colors.grey)
                     : null,
               ),
               const SizedBox(width: 8.0),
-              Text(
-                post.user.userName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+
+              // 2. Tên người dùng (Mở rộng để chiếm hết khoảng trống giữa)
+              Expanded(
+                child: Text(
+                  post.user.userName,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const Spacer(),
+
+              // 3. Nút Theo dõi (Nằm sát bên phải, cạnh dấu 3 chấm)
+              // Chỉ hiện khi KHÔNG phải bài của mình và đã đăng nhập
+              if (currentUserId != null && post.user.id != currentUserId)
+                GestureDetector(
+                  onTap: _toggleFollow,
+                  child: Container(
+                    margin: const EdgeInsets.only(left: 8, right: 4),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _isFollowing ? Colors.transparent : Colors.blue,
+                      border: _isFollowing
+                          ? Border.all(color: Colors.grey[400]!)
+                          : null,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _isFollowing ? "Đang theo dõi" : "Theo dõi",
+                      style: TextStyle(
+                        color: _isFollowing ? Colors.black87 : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // 4. Menu 3 chấm (Chỉnh sửa / Xóa)
+              // Chỉ hiện nếu là bài CỦA MÌNH
               if (post.user.id == currentUserId)
                 PopupMenuButton<String>(
                   onSelected: (value) {
@@ -220,13 +298,26 @@ class _PostItemState extends State<PostItem> {
             ],
           ),
         ),
-        // Ảnh bài đăng
-        Image.file(
+
+        // Ảnh bài đăng (Xử lý an toàn)
+        (post.post.imageUrl.startsWith('http'))
+            ? Image.network(
+          post.post.imageUrl,
+          width: double.infinity,
+          height: 400,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Container(color: Colors.grey[200]),
+        )
+            : Image.file(
           File(post.post.imageUrl),
           width: double.infinity,
           height: 400,
           fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Container(color: Colors.grey[200]),
         ),
+
         // Biểu tượng Thích và Bình luận
         Padding(
           padding: const EdgeInsets.all(8.0),
@@ -310,43 +401,44 @@ class _PostItemState extends State<PostItem> {
                 children: comments
                     .map(
                       (c) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundImage: NetworkImage(
-                                c.user.avatarUrl ??
-                                    'https://via.placeholder.com/150',
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  RichText(
-                                    text: TextSpan(
-                                      style: DefaultTextStyle.of(context).style,
-                                      children: [
-                                        TextSpan(
-                                          text: '${c.user.userName}  ',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        TextSpan(text: c.comment.content),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundImage: (c.user.avatarUrl != null &&
+                              c.user.avatarUrl!.isNotEmpty)
+                              ? NetworkImage(c.user.avatarUrl!)
+                              : const NetworkImage(
+                              'https://via.placeholder.com/150'),
                         ),
-                      ),
-                    )
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RichText(
+                                text: TextSpan(
+                                  style: DefaultTextStyle.of(context).style,
+                                  children: [
+                                    TextSpan(
+                                      text: '${c.user.userName}  ',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    TextSpan(text: c.comment.content),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
                     .toList(),
               ),
             );
