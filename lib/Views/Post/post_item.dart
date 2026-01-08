@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../Database/app_database.dart';
-import '../../Controllers/post_controller.dart';
-import '../../Controllers/comment_controller.dart';
-import '../../Controllers/user_controller.dart';
-
 import 'dart:io';
+import '../../Controllers/post_controller.dart';
+import '../../Controllers/auth_controller.dart';
+import '../../Models/post_model.dart';
+import '../../Controllers/user_controller.dart';
 import '../Comment/comments_screen.dart';
+import '../Post/post_detail_screen.dart';
 
 class PostItem extends StatefulWidget {
-  final PostWithUser post;
+  final PostModel post;
 
   const PostItem({super.key, required this.post});
 
@@ -18,40 +18,25 @@ class PostItem extends StatefulWidget {
 
 class _PostItemState extends State<PostItem> {
   bool _isLiked = false;
-  bool _isFollowing = false; // Biến lưu trạng thái follow
+  int _likesCount = 0;
+  bool _isFollowing = false;
 
   @override
   void initState() {
     super.initState();
+    _likesCount = widget.post.likes; // Fixed property name
     _checkLikeStatus();
-    _checkFollowStatus(); // Gọi hàm kiểm tra follow khi khởi tạo
-  }
-
-  @override
-  void didUpdateWidget(covariant PostItem oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.post.post.id != oldWidget.post.post.id) {
-      _checkLikeStatus();
-      _checkFollowStatus(); // Cập nhật lại nếu widget hiển thị bài khác
-    }
-  }
-
-  Future<void> _checkLikeStatus() async {
-    final liked = await PostController.instance.hasLiked(widget.post.post.id);
-    if (mounted) {
-      setState(() {
-        _isLiked = liked;
-      });
-    }
+    _checkFollowStatus();
   }
 
   Future<void> _checkFollowStatus() async {
-    if (currentUserId == null) return;
-    if (widget.post.user.id == currentUserId) return;
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null || widget.post.author == null) return;
+    // Ownership check is now in build()
 
-    final following = await UserController.instance.isFollowing(
-      currentUserId!,
-      widget.post.user.id,
+    bool following = await UserController.instance.isFollowing(
+      currentUser.id,
+      widget.post.author!.id,
     );
     if (mounted) {
       setState(() {
@@ -60,401 +45,380 @@ class _PostItemState extends State<PostItem> {
     }
   }
 
-  Future<void> _toggleLike() async {
-    try {
-      // Optimistic update
-      setState(() {
-        _isLiked = !_isLiked;
-      });
-
-      await PostController.instance.toggleLike(widget.post.post.id);
-    } catch (e) {
-      // Revert if error
-      if (mounted) {
-        setState(() {
-          _isLiked = !_isLiked;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-      }
-    }
-  }
-
-  // Hàm xử lý bấm nút Follow
-  Future<void> _toggleFollow() async {
-    if (currentUserId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vui lòng đăng nhập')));
+  Future<void> _handleFollowToggle() async {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) {
+      _showLoginRequirement();
       return;
     }
 
-    // Cập nhật giao diện ngay lập tức
+    if (widget.post.author == null) return;
+
+    // Optimistic update
     setState(() {
       _isFollowing = !_isFollowing;
     });
 
     try {
-      await UserController.instance.toggleFollow(
-        currentUserId!,
-        widget.post.user.id,
-      );
+      await UserController.instance.toggleFollow(widget.post.author!.id);
     } catch (e) {
-      // Hoàn tác nếu lỗi
+      // Revert
       if (mounted) {
         setState(() {
           _isFollowing = !_isFollowing;
         });
       }
-      debugPrint('Error toggling follow: $e');
+      debugPrint("Follow error: $e");
     }
   }
 
-  void _openComments(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CommentsScreen(postId: widget.post.post.id),
-      ),
-    );
+  bool _isToggling = false;
+
+  Future<void> _checkLikeStatus() async {
+    bool liked = await PostController.instance.hasLiked(widget.post.id);
+    if (mounted) {
+      setState(() {
+        _isLiked = liked;
+      });
+    }
   }
 
-  void _showDeleteDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa bài viết?'),
-        content: const Text(
-          'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context); // Đóng dialog
-              await PostController.instance.deletePost(widget.post.post.id);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã xóa bài viết')),
-                );
-              }
-            },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _toggleLike() async {
+    if (_isToggling) return; // Prevent multiple clicks
+
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) {
+      _showLoginRequirement();
+      return;
+    }
+
+    setState(() {
+      _isToggling = true;
+      _isLiked = !_isLiked;
+      _likesCount += _isLiked ? 1 : -1;
+    });
+
+    try {
+      await PostController.instance.toggleLike(widget.post.id);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLiked = !_isLiked;
+          _likesCount += _isLiked ? 1 : -1;
+        });
+      }
+      debugPrint("Like error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isToggling = false;
+        });
+      }
+    }
   }
 
-  void _showEditDialog() {
-    final TextEditingController _editController = TextEditingController(
-      text: widget.post.post.caption ?? '',
-    );
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Chỉnh sửa bài viết'),
-        content: TextField(
-          controller: _editController,
-          decoration: const InputDecoration(hintText: 'Nhập nội dung mới...'),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final newCaption = _editController.text.trim();
-              Navigator.pop(context); // Đóng dialog
-
-              await PostController.instance.updatePost(
-                widget.post.post,
-                newCaption,
-              );
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã cập nhật bài viết')),
-                );
-              }
-            },
-            child: const Text('Lưu'),
-          ),
-        ],
+  void _showLoginRequirement() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Vui lòng đăng nhập để thực hiện chức năng này'),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final post = widget.post;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Avatar và Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          child: Row(
-            children: [
-              // 1. Avatar (Xử lý an toàn)
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey[300],
-                backgroundImage:
-                    (post.user.avatarUrl != null &&
-                        post.user.avatarUrl!.isNotEmpty)
-                    ? (post.user.avatarUrl!.startsWith('http')
-                              ? NetworkImage(post.user.avatarUrl!)
-                              : FileImage(File(post.user.avatarUrl!)))
-                          as ImageProvider
-                    : null,
-                child:
-                    (post.user.avatarUrl == null ||
-                        post.user.avatarUrl!.isEmpty)
-                    ? const Icon(Icons.person, size: 20, color: Colors.grey)
-                    : null,
-              ),
-              const SizedBox(width: 8.0),
+    final currentUser = AuthController.instance.currentUser;
+    final isOwnPost = currentUser?.id == widget.post.author?.id;
 
-              // 2. Tên người dùng (Mở rộng để chiếm hết khoảng trống giữa)
-              Expanded(
-                child: Text(
-                  post.user.userName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.grey[200],
+              backgroundImage: _getAvatarImage(widget.post.author?.avatarUrl),
+              onBackgroundImageError:
+                  _getAvatarImage(widget.post.author?.avatarUrl) != null
+                  ? (_, __) {}
+                  : null,
+              child: _getAvatarImage(widget.post.author?.avatarUrl) == null
+                  ? const Icon(Icons.person, color: Colors.grey)
+                  : null,
+            ),
+            title: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.post.author?.userName ?? "Unknown",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-
-              // 3. Nút Theo dõi (Nằm sát bên phải, cạnh dấu 3 chấm)
-              // Chỉ hiện khi KHÔNG phải bài của mình và đã đăng nhập
-              if (currentUserId != null && post.user.id != currentUserId)
-                GestureDetector(
-                  onTap: _toggleFollow,
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 8, right: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _isFollowing ? Colors.transparent : Colors.blue,
-                      border: _isFollowing
-                          ? Border.all(color: Colors.grey[400]!)
-                          : null,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                if (!isOwnPost && widget.post.author != null) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _handleFollowToggle,
                     child: Text(
-                      _isFollowing ? "Đang theo dõi" : "Theo dõi",
+                      _isFollowing ? "• Đang theo dõi" : "• Theo dõi",
                       style: TextStyle(
-                        color: _isFollowing ? Colors.black87 : Colors.white,
+                        color: _isFollowing ? Colors.grey : Colors.blue,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 14,
                       ),
                     ),
                   ),
-                ),
-
-              // 4. Menu 3 chấm (Chỉnh sửa / Xóa)
-              // Chỉ hiện nếu là bài CỦA MÌNH
-              if (post.user.id == currentUserId)
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _showEditDialog();
-                    } else if (value == 'delete') {
-                      _showDeleteDialog();
-                    }
-                  },
-                  itemBuilder: (BuildContext context) {
-                    return [
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 20),
-                            SizedBox(width: 8),
-                            Text('Chỉnh sửa'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Xóa', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ];
-                  },
-                  icon: const Icon(Icons.more_vert),
-                ),
-            ],
-          ),
-        ),
-
-        // Ảnh bài đăng (Xử lý an toàn)
-        (post.post.imageUrl.startsWith('http'))
-            ? Image.network(
-                post.post.imageUrl,
-                width: double.infinity,
-                height: 400,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    Container(color: Colors.grey[200]),
-              )
-            : Image.file(
-                File(post.post.imageUrl),
-                width: double.infinity,
-                height: 400,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    Container(color: Colors.grey[200]),
-              ),
-
-        // Biểu tượng Thích và Bình luận
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: _toggleLike,
-                child: Icon(
-                  _isLiked ? Icons.favorite : Icons.favorite_border,
-                  size: 28,
-                  color: _isLiked ? Colors.red : null,
-                ),
-              ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => _openComments(context),
-                child: const Icon(Icons.comment_outlined, size: 28),
-              ),
-            ],
-          ),
-        ),
-
-        // Số lượt thích
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-          child: Text(
-            '${post.post.likes} lượt thích',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-
-        // Caption bài đăng
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
-          child: RichText(
-            text: TextSpan(
-              style: DefaultTextStyle.of(context).style,
-              children: <TextSpan>[
-                TextSpan(
-                  text: '${post.user.userName} ',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                TextSpan(text: post.post.caption),
+                ],
               ],
             ),
-          ),
-        ),
-
-        // Xem tất cả bình luận
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10.0),
-          child: GestureDetector(
-            onTap: () => _openComments(context),
-            child: FutureBuilder<int>(
-              future: CommentController.instance.getCommentCount(post.post.id),
-              builder: (context, snapshot) {
-                final count = snapshot.data ?? 0;
-                if (count <= 2) return const SizedBox.shrink();
-                return Text(
-                  'Xem tất cả $count bình luận',
-                  style: TextStyle(color: Colors.grey[600]),
-                );
-              },
+            trailing: IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () => _showMoreOptions(context),
             ),
           ),
-        ),
 
-        // Hiển thị 2 bình luận mới nhất
-        FutureBuilder<List<CommentWithUser>>(
-          future: CommentController.instance.getRecentComments(
-            post.post.id,
-            limit: 2,
-          ),
-          builder: (context, snapshot) {
-            final comments = snapshot.data ?? [];
-            if (comments.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 8.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: comments
-                    .map(
-                      (c) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundImage:
-                                  (c.user.avatarUrl != null &&
-                                      c.user.avatarUrl!.isNotEmpty)
-                                  ? NetworkImage(c.user.avatarUrl!)
-                                  : const NetworkImage(
-                                      'https://via.placeholder.com/150',
-                                    ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  RichText(
-                                    text: TextSpan(
-                                      style: DefaultTextStyle.of(context).style,
-                                      children: [
-                                        TextSpan(
-                                          text: '${c.user.userName}  ',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        TextSpan(text: c.comment.content),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+          // Image
+          if (widget.post.imageUrl.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PostDetailScreen(post: widget.post),
+                  ),
+                );
+              },
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: widget.post.imageUrl.startsWith('http')
+                    ? Image.network(
+                        widget.post.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.error),
+                        ),
+                      )
+                    : Image.file(
+                        File(widget.post.imageUrl),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.error),
                         ),
                       ),
-                    )
-                    .toList(),
               ),
-            );
-          },
-        ),
+            ),
 
-        const SizedBox(height: 16.0),
-        const Divider(height: 1, thickness: 1),
-      ],
+          // Actions
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  _isLiked ? Icons.favorite : Icons.favorite_border,
+                  color: _isLiked ? Colors.red : Colors.black,
+                ),
+                onPressed: _toggleLike,
+              ),
+              IconButton(
+                icon: const Icon(Icons.mode_comment_outlined),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CommentsScreen(postId: widget.post.id),
+                    ),
+                  );
+                },
+              ),
+
+              // IconButton(
+              //   icon: const Icon(Icons.send_outlined),
+              //   onPressed: () {},
+              // ),
+              // const Spacer(),
+              // IconButton(
+              //   icon: const Icon(Icons.bookmark_border),
+              //   onPressed: () {},
+              // ),
+            ],
+          ),
+
+          // Likes
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '$_likesCount lượt thích',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+
+          // Caption
+          if (widget.post.caption != null && widget.post.caption!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: RichText(
+                text: TextSpan(
+                  style: DefaultTextStyle.of(context).style,
+                  children: [
+                    TextSpan(
+                      text: '${widget.post.author?.userName ?? "Unknown"} ',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    TextSpan(text: widget.post.caption),
+                  ],
+                ),
+              ),
+            ),
+
+          // View Comments
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        CommentsScreen(postId: widget.post.id),
+                  ),
+                );
+              },
+              child: const Text(
+                'Xem tất cả bình luận',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          ),
+
+          // Time
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              _timeAgo(widget.post.createdAt ?? DateTime.now()),
+              style: const TextStyle(color: Colors.grey, fontSize: 10),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  void _showMoreOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              if (AuthController.instance.currentUser?.id ==
+                  widget.post.author?.id) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text('Chỉnh sửa'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showEditDialog(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text(
+                    'Xóa bài viết',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await PostController.instance.deletePost(widget.post.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Xoá bài viết thành công'),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ] else
+                ListTile(
+                  leading: const Icon(Icons.report),
+                  title: const Text('Báo cáo'),
+                  onTap: () => Navigator.pop(context),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays > 7) return '${date.day}/${date.month}/${date.year}';
+    if (diff.inDays > 0) return '${diff.inDays} ngày trước';
+    if (diff.inHours > 0) return '${diff.inHours} giờ trước';
+    if (diff.inMinutes > 0) return '${diff.inMinutes} phút trước';
+    return 'Vừa xong';
+  }
+
+  void _showEditDialog(BuildContext context) {
+    final TextEditingController captionController = TextEditingController(
+      text: widget.post.caption,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Chỉnh sửa bài viết'),
+          content: TextField(
+            controller: captionController,
+            decoration: const InputDecoration(
+              hintText: 'Nhập nội dung mới...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (captionController.text.trim().isEmpty) return;
+
+                await PostController.instance.updatePost(
+                  widget.post.id,
+                  captionController.text.trim(),
+                );
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cập nhật thành công')),
+                  );
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  ImageProvider? _getAvatarImage(String? url) {
+    if (url == null || url.isEmpty) return null;
+    if (url.startsWith('http')) return NetworkImage(url);
+    if (url.startsWith('uploads/') || url.startsWith('uploads\\')) {
+      return NetworkImage('https://flutter-demo-api.onrender.com/$url');
+    }
+    return FileImage(File(url));
   }
 }

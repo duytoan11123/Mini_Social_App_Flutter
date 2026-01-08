@@ -1,46 +1,51 @@
-import '../Database/app_database.dart';
+import '../Models/user_model.dart';
+import 'post_controller.dart';
+import '../Services/api_service.dart';
 import '../Views/Auth/auth_storage.dart';
-import '../utils/password_utils.dart';
+
+// Global variable removed/commented out to favor instance variable usage
+// UserModel? currentUser;
 
 class AuthController {
-  // Singleton pattern
   static final AuthController _instance = AuthController._internal();
   factory AuthController() => _instance;
   AuthController._internal();
 
   static AuthController get instance => _instance;
 
-  Future<User?> login(String username, String password) async {
-    // Mã hóa mật khẩu trước khi gửi xuống DB
-    final hashedPassword = PasswordUtils.hash(password);
+  final ApiService _api = ApiService();
 
-    final user = await db.login(username, hashedPassword);
+  UserModel? currentUser; // Instance variable
 
-    if (user != null) {
-      currentUserId = user.id;
-      await AuthStorage.saveUserId(user.id);
+  Future<UserModel> login(String username, String password) async {
+    try {
+      final user = await _api.login(username, password);
+      currentUser = user;
+      return user;
+    } catch (e) {
+      print("Login error: $e");
+      rethrow;
     }
-
-    return user;
   }
 
-  Future<User?> register({
+  Future<UserModel> register({
     required String username,
     required String password,
     String? email,
   }) async {
-    // Mã hóa mật khẩu
-    final hashedPassword = PasswordUtils.hash(password);
-
-    // Gọi DB đăng ký
-    final user = await db.register(username, hashedPassword, email: email);
-
-    // Nếu đăng ký thành công, tự động đăng nhập (tùy nghiệp vụ, ở đây làm đơn giản là trả về user để UI xử lý)
-    return user;
+    try {
+      final user = await _api.register(username, password, email ?? "");
+      currentUser = user;
+      return user;
+    } catch (e) {
+      print("Register error: $e");
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
+    currentUser = null;
     await AuthStorage.logout();
-    currentUserId = null;
+    PostController.instance.clear();
   }
 }

@@ -1,49 +1,84 @@
-import 'package:drift/drift.dart';
-import '../Database/app_database.dart';
+import 'dart:async';
+import '../Models/post_model.dart';
+import '../Services/api_service.dart';
+import 'auth_controller.dart'; // Import AuthController
 
 class PostController {
   static final PostController _instance = PostController._internal();
-  static PostController get instance => _instance;
-
+  factory PostController() => _instance;
   PostController._internal();
 
-  /// Tạo bài viết mới
-  Future<int> createPost(String imageUrl, String? caption) async {
-    if (currentUserId == null) throw Exception("User not logged in");
+  static PostController get instance => _instance;
 
-    final entry = PostsCompanion(
-      authorId: Value(currentUserId!),
-      imageUrl: Value(imageUrl),
-      caption: Value(caption),
-    );
-    return await db.insertPost(entry);
+  final ApiService _api = ApiService();
+
+  // StreamController for broadcasting post updates
+  final _postsController = StreamController<List<PostModel>>.broadcast();
+  Stream<List<PostModel>> get postsStream => _postsController.stream;
+
+  // Cached posts
+  List<PostModel> _posts = [];
+
+  /// Fetch posts from API
+  Future<void> fetchPosts() async {
+    final posts = await _api.getPosts();
+    _posts = posts;
+    _postsController.add(_posts);
+  }
+
+  /// Tạo bài viết mới
+  Future<void> createPost(String imageUrl, String caption) async {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return;
+
+    final newPost = await _api.createPost(currentUser.id, imageUrl, caption);
+    _posts.insert(0, newPost);
+    _postsController.add(_posts);
   }
 
   /// Xóa bài viết
-  Future<void> deletePost(int postId) async {
-    await db.deletePost(postId);
+  Future<void> deletePost(String postId) async {
+    await _api.deletePost(postId);
+    _posts.removeWhere((p) => p.id == postId);
+    _postsController.add(_posts);
   }
 
   /// Cập nhật nội dung bài viết
-  Future<void> updatePost(Post post, String newCaption) async {
-    final updatedPost = post.copyWith(caption: Value(newCaption));
-    await db.updatePost(updatedPost);
+  Future<void> updatePost(String postId, String newCaption) async {
+    final updatedPost = await _api.updatePost(postId, newCaption);
+    final index = _posts.indexWhere((p) => p.id == postId);
+    if (index != -1) {
+      _posts[index] = updatedPost;
+      _postsController.add(_posts);
+    }
   }
 
   /// Kiểm tra user đã like bài viết chưa
-  Future<bool> hasLiked(int postId) async {
-    if (currentUserId == null) return false;
-    return await db.hasUserLikedPost(postId, currentUserId!);
+  Future<bool> hasLiked(String postId) async {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return false;
+
+    try {
+      return await _api.hasLiked(postId, currentUser.id);
+    } catch (e) {
+      print("[PostController] hasLiked error: $e");
+      return false;
+    }
   }
 
   /// Toggle like
-  Future<void> toggleLike(int postId) async {
-    if (currentUserId == null) throw Exception("User not logged in");
-    await db.togglePostLike(postId, currentUserId!);
+  Future<void> toggleLike(String postId) async {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return;
+
+    await _api.toggleLike(postId, currentUser.id);
+    // Refresh posts to get new like count
+    fetchPosts();
   }
 
-  /// Watch danh sách bài viết kèm user
-  Stream<List<PostWithUser>> watchPostsWithUsers() {
-    return db.watchPostsWithUsers();
+  /// Clear all posts (e.g. on logout)
+  void clear() {
+    _posts = [];
+    _postsController.add(_posts);
   }
 }

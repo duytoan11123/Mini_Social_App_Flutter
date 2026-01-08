@@ -1,10 +1,11 @@
-import 'dart:io'; // 👈 Bắt buộc có để dùng biến File
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Thư viện chọn ảnh
-import '../../Database/app_database.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../Models/user_model.dart';
+import '../../Controllers/user_controller.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  final User user;
+  final UserModel user;
 
   const EditProfileScreen({super.key, required this.user});
 
@@ -16,7 +17,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
 
-  File? _selectedImage; // Biến này chỉ lưu File ảnh từ máy
+  File? _selectedImage;
   bool _isSaving = false;
 
   @override
@@ -35,70 +36,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // 👇 HÀM QUAN TRỌNG: CHỈ LẤY TỪ FILE
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-
-    // ImageSource.gallery = Chỉ mở thư viện/File trên máy
-    // Nếu muốn chụp ảnh thì đổi thành ImageSource.camera
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
       setState(() {
-        _selectedImage = File(pickedFile.path); // Lưu đường dẫn file
+        _selectedImage = File(pickedFile.path);
       });
     }
   }
 
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
+    try {
+      String? finalAvatarUrl = widget.user.avatarUrl;
 
-    // Logic lưu đường dẫn ảnh
-    String? finalAvatarUrl;
+      if (_selectedImage != null) {
+        // Upload Avatar to Server
+        finalAvatarUrl = await UserController.instance.uploadAvatar(
+          _selectedImage!,
+        );
+      }
 
-    // 1. Nếu người dùng vừa chọn ảnh mới -> Lấy đường dẫn file đó
-    if (_selectedImage != null) {
-      finalAvatarUrl = _selectedImage!.path;
-    }
-    // 2. Nếu không chọn gì -> Giữ nguyên đường dẫn cũ
-    else {
-      finalAvatarUrl = widget.user.avatarUrl;
-    }
+      await UserController.instance.updateProfile(
+        widget.user.id,
+        fullName: _nameController.text.trim(),
+        bio: _bioController.text.trim(),
+        avatarUrl: finalAvatarUrl,
+      );
 
-    User updatedUser = User(
-      id: widget.user.id,
-      userName: widget.user.userName,
-      password: widget.user.password,
-      avatarUrl: finalAvatarUrl, // Lưu đường dẫn file vào DB
-      fullName: _nameController.text.trim(),
-      bio: _bioController.text.trim(),
-    );
-
-    await db.updateUser(updatedUser);
-
-    if (mounted) {
       setState(() => _isSaving = false);
-      Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Logic hiển thị ảnh (Preview)
     ImageProvider? imageProvider;
 
-    // Ưu tiên 1: Hiển thị ảnh File vừa chọn từ máy
     if (_selectedImage != null) {
       imageProvider = FileImage(_selectedImage!);
-    }
-    // Ưu tiên 2: Hiển thị ảnh cũ đã lưu trong DB
-    else if (widget.user.avatarUrl != null &&
+    } else if (widget.user.avatarUrl != null &&
         widget.user.avatarUrl!.isNotEmpty) {
-      // Vì dữ liệu cũ có thể là Link mạng hoặc File, ta check cả 2 cho chắc
       if (widget.user.avatarUrl!.startsWith('http')) {
         imageProvider = NetworkImage(widget.user.avatarUrl!);
       } else {
-        // Đây là trường hợp hiển thị File đã lưu từ lần trước
         imageProvider = FileImage(File(widget.user.avatarUrl!));
       }
     }
@@ -126,10 +116,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Avatar
             Center(
               child: GestureDetector(
-                onTap: _pickImage, // Bấm vào gọi hàm chọn File
+                onTap: _pickImage,
                 child: Stack(
                   children: [
                     CircleAvatar(
@@ -157,7 +146,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           Icons.photo_library,
                           color: Colors.white,
                           size: 20,
-                        ), // Icon thư viện ảnh
+                        ),
                       ),
                     ),
                   ],
@@ -171,7 +160,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 30),
 
-            // TextField Name
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -182,7 +170,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 16),
 
-            // TextField Bio
             TextField(
               controller: _bioController,
               maxLines: 3,

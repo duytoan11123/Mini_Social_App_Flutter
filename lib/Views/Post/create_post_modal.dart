@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../Database/app_database.dart';
 import '../../Controllers/post_controller.dart';
+import '../../Controllers/auth_controller.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import '../../Services/api_service.dart';
 
 class CreatePostForm extends StatefulWidget {
-  CreatePostForm({super.key});
+  const CreatePostForm({super.key});
 
   @override
   State<CreatePostForm> createState() => _CreatePostFormState();
@@ -13,7 +14,9 @@ class CreatePostForm extends StatefulWidget {
 
 class _CreatePostFormState extends State<CreatePostForm> {
   File? _selectedImage;
+  bool _isLoading = false;
   final _picker = ImagePicker();
+
   final TextEditingController _captionController = TextEditingController();
   var _fileButtonText = "Chọn Ảnh";
 
@@ -28,31 +31,47 @@ class _CreatePostFormState extends State<CreatePostForm> {
   }
 
   Future<void> _savePost() async {
-    if (currentUserId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Bạn chưa đăng nhập')));
-      return;
-    }
-    if (_selectedImage == null || _captionController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Vui lòng chọn ảnh và nhập nội dung!")),
-      );
-      return;
-    }
-
-    try {
-      await PostController.instance.createPost(
-        _selectedImage!.path,
-        _captionController.text,
-      );
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+        ).showSnackBar(const SnackBar(content: Text('Bạn chưa đăng nhập')));
       }
+      return;
+    }
+
+    if (_selectedImage == null || _captionController.text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Vui lòng chọn ảnh và nhập nội dung!")),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Upload Image to Server
+      final imageUrl = await ApiService().uploadImage(_selectedImage!);
+
+      // 2. Create Post
+      await PostController.instance.createPost(
+        imageUrl,
+        _captionController.text.trim(),
+      );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Post error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -102,9 +121,6 @@ class _CreatePostFormState extends State<CreatePostForm> {
           ElevatedButton(
             onPressed: () {
               _savePost();
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Đăng bài thành công')));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blueAccent,

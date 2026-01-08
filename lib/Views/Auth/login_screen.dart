@@ -30,18 +30,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      final user = await AuthController.instance.login(username, password);
+      await AuthController.instance.login(username, password);
 
       if (!mounted) return;
 
       setState(() => _loading = false);
-
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sai tài khoản hoặc mật khẩu')),
-        );
-        return;
-      }
 
       Navigator.pushReplacement(
         context,
@@ -50,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
+        // Display the error message from AuthController->ApiService (e.g. "Invalid credentials")
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));

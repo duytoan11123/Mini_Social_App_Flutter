@@ -1,11 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../Database/app_database.dart';
+import 'dart:io';
 
+import '../../Models/user_model.dart';
+import '../../Models/post_model.dart';
 import '../Post/post_detail_screen.dart';
+import '../../Controllers/user_controller.dart';
+import '../../Controllers/auth_controller.dart';
 
 class UserProfileScreen extends StatefulWidget {
-  final User user; // Nhận thông tin người dùng cần xem từ màn hình Search
+  final UserModel user; // Use UserModel
 
   const UserProfileScreen({super.key, required this.user});
 
@@ -14,22 +17,25 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  List<Post> _userPosts = [];
+  List<PostModel> _userPosts = [];
   bool _isLoading = true;
-  bool _isFollowing = false; // Biến trạng thái theo dõi
+  bool _isFollowing = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserPosts();
-    _checkFollowingStatus(); // Kiểm tra khi mở màn hình
+    _checkFollowingStatus();
   }
 
-  // Hàm kiểm tra xem mình đã follow người này chưa
   Future<void> _checkFollowingStatus() async {
-    if (currentUserId == null) return;
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return;
 
-    final status = await db.isFollowing(currentUserId!, widget.user.id);
+    final status = await UserController.instance.isFollowing(
+      currentUser.id,
+      widget.user.id,
+    );
 
     if (mounted) {
       setState(() {
@@ -39,21 +45,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _handleToggleFollow() async {
-    if (currentUserId == null) return;
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return;
 
-    await db.toggleFollow(currentUserId!, widget.user.id);
+    await UserController.instance.toggleFollow(widget.user.id);
 
     setState(() {
       _isFollowing = !_isFollowing;
     });
   }
 
-  // Load bài viết của người này
   Future<void> _loadUserPosts() async {
-    // Gọi hàm lấy bài viết theo ID (Cần đảm bảo hàm này đã có trong AppDatabase)
-    // Nếu chưa có hàm getPostsByUserId, hãy xem lại hướng dẫn trước để thêm vào db
-    final posts = await db.getPostsByUserId(widget.user.id);
-
+    final posts = await UserController.instance.getPostsByUserId(
+      widget.user.id,
+    );
     if (mounted) {
       setState(() {
         _userPosts = posts;
@@ -87,7 +92,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         children: [
           Row(
             children: [
-              // Avatar
               CircleAvatar(
                 radius: 40,
                 backgroundColor: Colors.grey[300],
@@ -95,9 +99,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     (widget.user.avatarUrl != null &&
                         widget.user.avatarUrl!.isNotEmpty)
                     ? (widget.user.avatarUrl!.startsWith('http')
-                              ? NetworkImage(widget.user.avatarUrl!)
-                              : FileImage(File(widget.user.avatarUrl!)))
-                          as ImageProvider
+                          ? NetworkImage(widget.user.avatarUrl!)
+                          : FileImage(File(widget.user.avatarUrl!))
+                                as ImageProvider)
                     : null,
                 child:
                     (widget.user.avatarUrl == null ||
@@ -109,7 +113,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     : null,
               ),
               const SizedBox(width: 20),
-              // Số liệu bài viết
               Expanded(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -135,12 +138,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Tên hiển thị
           Text(
             widget.user.fullName ?? widget.user.userName,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
-          // Tiểu sử
           if (widget.user.bio != null && widget.user.bio!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -149,13 +150,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
           const SizedBox(height: 20),
 
-          // Chỉ hiện nút Follow nếu KHÔNG phải là trang cá nhân của chính mình
-          if (currentUserId != widget.user.id)
+          // Show follow button if not current user
+          if (AuthController.instance.currentUser?.id != widget.user.id)
             SizedBox(
               width: double.infinity,
               child: _isFollowing
                   ? OutlinedButton(
-                      // Giao diện khi ĐÃ theo dõi (Nút viền)
                       onPressed: _handleToggleFollow,
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.grey),
@@ -166,7 +166,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       ),
                     )
                   : ElevatedButton(
-                      // Giao diện khi CHƯA theo dõi (Nút màu)
                       onPressed: _handleToggleFollow,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
@@ -203,13 +202,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       itemBuilder: (context, index) {
         final post = _userPosts[index];
 
-        // Logic hiển thị ảnh (tương tự file cũ)
         Widget imageWidget;
         if (post.imageUrl.isNotEmpty) {
-          bool isNetwork = post.imageUrl.startsWith('http');
-          imageWidget = isNetwork
-              ? Image.network(post.imageUrl, fit: BoxFit.cover)
-              : Image.file(File(post.imageUrl), fit: BoxFit.cover);
+          imageWidget = post.imageUrl.startsWith('http')
+              ? Image.network(
+                  post.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: Colors.grey[200]),
+                )
+              : Image.file(
+                  File(post.imageUrl),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Container(color: Colors.grey[200]),
+                );
         } else {
           imageWidget = Container(
             color: Colors.blue[50],
@@ -219,15 +226,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         return InkWell(
           onTap: () {
-            // Chuyển sang xem chi tiết bài viết
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => PostDetailScreen(post: post, user: widget.user),
-              ),
+              MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)),
             );
           },
-          child: imageWidget,
+          child: Hero(
+            tag: 'user_post_${post.id}',
+            child: imageWidget,
+          ), // Avoid tag conflict with Feed
         );
       },
     );

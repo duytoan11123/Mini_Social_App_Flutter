@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../Database/app_database.dart';
+import 'dart:io';
+
+import '../../Models/user_model.dart';
 import '../../Controllers/user_controller.dart';
 import '../Profile/user_profile_screen.dart';
 
@@ -12,8 +14,39 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  // Bỏ TabController vì chỉ còn 1 chức năng duy nhất
-  String _keyword = '';
+  List<UserModel> _searchResults = [];
+  bool _isLoading = false;
+
+  void _onSearchChanged(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+      });
+      return;
+    }
+
+    // Debounce could be added here
+    _performSearch(query);
+  }
+
+  Future<void> _performSearch(String query) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final results = await UserController.instance.searchUsers(query);
+      setState(() {
+        _searchResults = results;
+      });
+    } catch (e) {
+      debugPrint("Search error: $e");
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -21,129 +54,75 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  void _onSearch() {
-    setState(() {
-      _keyword = _searchController.text.trim();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Colors.black),
         title: TextField(
           controller: _searchController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Tìm kiếm người dùng...', // Sửa hint text cho rõ ràng
+          onChanged: _onSearchChanged,
+          decoration: const InputDecoration(
+            hintText: 'Tìm kiếm người dùng...',
             border: InputBorder.none,
-            hintStyle: TextStyle(color: Colors.grey[400]),
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.search, color: Colors.blueAccent),
-              onPressed: _onSearch,
-            ),
+            hintStyle: TextStyle(color: Colors.white70),
           ),
-          onChanged: (value) {
-            setState(() {
-              _keyword = value.trim();
-            });
-          },
-          onSubmitted: (_) => _onSearch(),
+          style: const TextStyle(color: Colors.white),
+          cursorColor: Colors.white,
         ),
-        // Đã xóa phần bottom: TabBar
+        backgroundColor: Colors.blue,
       ),
-      // Body không cần TabBarView nữa, hiển thị trực tiếp kết quả User
-      body: _keyword.isEmpty
-          ? const Center(
-              child: Text(
-                "Nhập tên để tìm kiếm bạn bè",
-                style: TextStyle(color: Colors.grey, fontSize: 16),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _searchResults.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.search, size: 80, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text(
+                    _searchController.text.isEmpty
+                        ? 'Nhập tên người dùng để tìm kiếm'
+                        : 'Không tìm thấy kết quả nào',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
               ),
             )
-          : _buildUserResults(),
-    );
-  }
-
-  Widget _buildUserResults() {
-    return FutureBuilder<List<User>>(
-      future: UserController.instance.searchUsers(_keyword),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Lỗi: ${snapshot.error}'));
-        }
-
-        final users = snapshot.data ?? [];
-
-        if (users.isEmpty) {
-          return const Center(
-            child: Text(
-              'Không tìm thấy người dùng nào',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          );
-        }
-
-        return ListView.separated(
-          itemCount: users.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final user = users[index];
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              leading: CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.blueAccent,
-                // Hiển thị Avatar nếu có, không thì hiện chữ cái đầu
-                backgroundImage:
-                    (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                    ? NetworkImage(user.avatarUrl!) as ImageProvider
-                    : null,
-                child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                    ? Text(
-                        user.userName[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                        ),
-                      )
-                    : null,
-              ),
-              title: Text(
-                user.fullName ?? user.userName, // Ưu tiên hiện tên đầy đủ
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              subtitle: Text(
-                '@${user.userName}', // Hiện username bên dưới
-                style: const TextStyle(color: Colors.grey),
-              ),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey,
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => UserProfileScreen(user: user),
+          : ListView.builder(
+              itemCount: _searchResults.length,
+              itemBuilder: (context, index) {
+                final user = _searchResults[index];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage:
+                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                        ? (user.avatarUrl!.startsWith('http')
+                              ? NetworkImage(user.avatarUrl!)
+                              : FileImage(File(user.avatarUrl!))
+                                    as ImageProvider)
+                        : null,
+                    onBackgroundImageError:
+                        (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                        ? (_, __) {}
+                        : null,
+                    child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                        ? Text(user.userName[0].toUpperCase())
+                        : null,
                   ),
+                  title: Text(user.userName),
+                  subtitle: Text(user.fullName ?? ''),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserProfileScreen(user: user),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          },
-        );
-      },
+            ),
     );
   }
 }

@@ -1,75 +1,50 @@
-import 'package:drift/drift.dart';
-import '../Database/app_database.dart';
+import '../Models/comment_model.dart';
+import '../Services/api_service.dart';
+import 'auth_controller.dart';
 
 class CommentController {
   static final CommentController _instance = CommentController._internal();
-  static CommentController get instance => _instance;
-
+  factory CommentController() => _instance;
   CommentController._internal();
 
-  /// Thêm bình luận mới
-  Future<void> addComment({
-    required int postId,
-    required int userId,
-    required String content,
-    String? imageUrl,
-    int? parentId,
+  static CommentController get instance => _instance;
+
+  final ApiService _api = ApiService();
+
+  Future<void> addComment(
+    String postId,
+    String content, {
+    String? parentId,
   }) async {
-    await db.insertComment(
-      CommentsCompanion(
-        postId: Value(postId),
-        userId: Value(userId),
-        content: content.isNotEmpty ? Value(content) : const Value.absent(),
-        imageUrl: imageUrl != null ? Value(imageUrl) : const Value.absent(),
-        parentId: parentId != null ? Value(parentId) : const Value.absent(),
-      ),
+    if (AuthController.instance.currentUser == null) {
+      throw Exception("User not logged in");
+    }
+    await _api.addComment(
+      postId,
+      AuthController.instance.currentUser!.id,
+      content,
+      parentId: parentId,
     );
   }
 
-  /// Xóa bình luận
-  Future<void> deleteComment(int commentId) async {
-    await db.deleteComment(commentId);
+  Future<int> getCommentCount(String postId) async {
+    final comments = await _api.getComments(postId);
+    return comments.length;
   }
 
-  /// Watch bình luận của bài viết
-  Stream<List<CommentWithUser>> watchCommentsForPost(int postId) {
-    return db.watchCommentsForPost(postId);
-  }
-
-  /// Watch các phản hồi (replies) cho bình luận
-  Stream<List<CommentWithUser>> watchRepliesForComment(int commentId) {
-    return db.watchRepliesForComment(commentId);
-  }
-
-  /// Toggle reaction
-  Future<void> toggleReaction(
-    int commentId,
-    int userId,
-    String reactionType,
-  ) async {
-    await db.toggleReaction(commentId, userId, reactionType);
-  }
-
-  /// Lấy reaction của user đối với comment
-  Future<String?> getUserReaction(int commentId, int userId) async {
-    return await db.getUserReaction(commentId, userId);
-  }
-
-  /// Watch tổng hợp reactions
-  Stream<List<ReactionCount>> watchReactionsForComment(int commentId) {
-    return db.watchReactionsForComment(commentId);
-  }
-
-  /// Get comment count
-  Future<int> getCommentCount(int postId) async {
-    return await db.getCommentCount(postId);
-  }
-
-  /// Get recent comments
-  Future<List<CommentWithUser>> getRecentComments(
-    int postId, {
-    int limit = 2,
+  Future<List<CommentModel>> getRecentComments(
+    String postId, {
+    int limit = 100,
   }) async {
-    return await db.getRecentComments(postId, limit: limit);
+    final currentUser = AuthController.instance.currentUser;
+    final comments = await _api.getComments(postId, userId: currentUser?.id);
+    return comments;
+  }
+
+  Future<bool> toggleLike(String commentId) async {
+    final currentUser = AuthController.instance.currentUser;
+    if (currentUser == null) return false;
+
+    return await _api.toggleCommentLike(commentId, currentUser.id);
   }
 }

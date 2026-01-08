@@ -60,18 +60,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _loading = true);
 
     try {
-      final user = await AuthController.instance.register(
+      await AuthController.instance.register(
         username: username,
         password: password,
         email: email,
       );
 
       setState(() => _loading = false);
-
-      if (user == null) {
-        _msg('Tên đăng nhập đã tồn tại');
-        return;
-      }
 
       if (!mounted) return;
 
@@ -85,8 +80,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
-      _msg('Lỗi: $e');
+      // Remove "Register error: " prefix if present from AuthController print,
+      // but strictly speaking e is just the string from ApiService if rethrown cleanly?
+      // ApiService throws a string. AuthController rethrows.
+      // So e is string.
+      _msg(e.toString());
     }
   }
 
